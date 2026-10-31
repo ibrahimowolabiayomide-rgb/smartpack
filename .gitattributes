@@ -1,0 +1,9 @@
+# Store text files with LF line endings in the repository and in every checkout.
+# Prettier is configured with endOfLine: lf; Git for Windows defaults (core.autocrlf=true)
+# would otherwise turn checkouts into CRLF and make `pnpm format:check` fail.
+* text=auto eol=lf
+
+# Never convert binary assets.
+*.woff2 binary
+*.png binary
+*.ico binary

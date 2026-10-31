@@ -1,0 +1,56 @@
+/*
+ * SmartPack design tokens — the single source of truth for colour.
+ *
+ * Palette logic
+ *   ground / surface / sunken   warm stone, so the interface is never stark white
+ *   ink                         deep blue-charcoal for text and the navigation rail
+ *   accent                      one forest green, reserved for primary actions and "healthy"
+ *   warn / danger / neutral     muted status colours; always paired with a text label
+ *
+ * Every text/background pair used in the UI is checked against WCAG AA by
+ * src/styles/tokens.test.ts, which parses this file. Change a value here and that test tells you
+ * whether the new pair is still readable.
+ */
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --ground: #efebe2;
+  --surface: #f7f4ee;
+  --sunken: #e6e1d5;
+  --line: #d6cfbf;
+  --line-strong: #8b8574;
+
+  /* Text */
+  --ink: #1c222b;
+  --ink-muted: #4a5160;
+  --ink-subtle: #565d68;
+
+  /* Navigation rail (dark) */
+  --nav: #171d26;
+  --nav-raised: #212935;
+  --nav-line: #2c3544;
+  --nav-text: #e9e5da;
+  --nav-muted: #a9adb4;
+  --nav-dim: #8c919a;
+
+  /* Accent (forest green) */
+  --accent: #2b6a4c;
+  --accent-hover: #235740;
+  --accent-ink: #f7f4ee;
+  --accent-tint: #dce8df;
+  --accent-text: #1f5a3f;
+
+  /* Status */
+  --warn-bg: #f1e3c4;
+  --warn-text: #6b4510;
+  --danger-bg: #f0d9d3;
+  --danger-text: #8a2f24;
+  --neutral-bg: #e2ddd0;
+  --neutral-text: #3f4550;
+
+  /* Focus indicator: ink on light surfaces, stone on the dark rail. Two weights of the same hue
+     family keep the interface to a single accent colour. */
+  --focus: #1c222b;
+  --focus-on-dark: #e9e5da;
+}

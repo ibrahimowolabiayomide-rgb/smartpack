@@ -1,0 +1,38 @@
+{
+  "name": "smartpack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SmartPack Asset Intelligence Platform",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10.28.0"
+  },
+  "prettier": "@smartpack/config/prettier",
+  "scripts": {
+    "dev": "pnpm --filter @smartpack/shared build && pnpm --parallel --filter @smartpack/shared --filter @smartpack/api --filter @smartpack/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm --filter @smartpack/shared build && pnpm -r lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm --filter @smartpack/shared build && pnpm -r typecheck",
+    "test": "pnpm --filter @smartpack/shared build && pnpm -r test",
+    "test:integration": "pnpm --filter @smartpack/shared build && pnpm --filter @smartpack/api test:integration",
+    "test:e2e": "pnpm build && pnpm --filter @smartpack/web test:e2e",
+    "db:generate": "pnpm --filter @smartpack/api db:generate",
+    "db:migrate": "pnpm --filter @smartpack/shared build && pnpm --filter @smartpack/api build && pnpm --filter @smartpack/api db:migrate"
+  },
+  "devDependencies": {
+    "@smartpack/config": "workspace:*",
+    "prettier": "3.9.10"
+  },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "@parcel/watcher",
+      "@scarf/scarf",
+      "esbuild",
+      "unrs-resolver"
+    ]
+  }
+}

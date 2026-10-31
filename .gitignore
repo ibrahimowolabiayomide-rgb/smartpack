@@ -1,0 +1,38 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+blob-report/
+
+# Environment files — never commit real values. Only *.example files are tracked.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local tooling and OS files
+.vercel/
+.turbo/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor state
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Archives and review bundles must never be committed
+*.zip
