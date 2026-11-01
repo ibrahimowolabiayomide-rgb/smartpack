@@ -1,7 +1,7 @@
 # Development setup
 
 How to get SmartPack running on your own machine, and how to verify it. Every command here was run
-while building Phase 1; anything that was not (and could not be) verified is marked **Unverified**.
+while building Phases 1 and 2; anything that was not (and could not be) verified is marked **Unverified**.
 
 ## 1. Tools
 
@@ -57,12 +57,13 @@ create and drop a temporary database beside it; they must never share a database
 pnpm dev
 ```
 
-- Web: http://localhost:3000 (`/`, `/login`, `/dashboard`)
+- Web: http://localhost:3000 (`/`, `/login`, `/dashboard` and the module pages under `/dashboard/...`)
 - API: http://localhost:4000/api/v1/health
 - API documentation: http://localhost:4000/api/docs
 
-The dashboard's "Platform status" panel calls the API's health endpoint. If the API or database is
-stopped, the panel shows an explicit error instead of a success state.
+The Overview page's "Service status" panel calls the API's health endpoint. If the API or database
+is stopped, the panel shows an explicit error instead of a success state. "Check again" re-runs the
+check.
 
 Run one app on its own with `pnpm --filter @smartpack/api dev` or `pnpm --filter @smartpack/web dev`.
 
@@ -76,12 +77,14 @@ pnpm test
 pnpm test:integration
 pnpm build
 pnpm --filter @smartpack/web exec playwright install chromium   # once
-pnpm test:e2e
+pnpm test:e2e         # quick: 1440 and 390 px
+pnpm test:e2e:full    # all five viewport widths
 ```
 
-`pnpm test:e2e` builds all packages, starts the API (port 4100) and the production web build
-(port 3100) itself, and drives a real browser against them. The ports differ from `pnpm dev`, so
-the two can run at the same time.
+`pnpm test:e2e` builds all packages, starts two APIs (ports 4100 and 4101) and five production web
+servers (ports 3100 to 3104) itself, and drives a real browser against them. The quick set
+uses two widths (1440 and 390 px); `pnpm test:e2e:full` uses five. The ports differ from `pnpm dev`, so the two can run at the same time. The suite takes
+several minutes. See [TESTING.md](TESTING.md).
 
 ### If Playwright cannot download a browser
 

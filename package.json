@@ -20,6 +20,7 @@
     "test": "pnpm --filter @smartpack/shared build && pnpm -r test",
     "test:integration": "pnpm --filter @smartpack/shared build && pnpm --filter @smartpack/api test:integration",
     "test:e2e": "pnpm build && pnpm --filter @smartpack/web test:e2e",
+    "test:e2e:full": "pnpm build && pnpm --filter @smartpack/web test:e2e:full",
     "db:generate": "pnpm --filter @smartpack/api db:generate",
     "db:migrate": "pnpm --filter @smartpack/shared build && pnpm --filter @smartpack/api build && pnpm --filter @smartpack/api db:migrate"
   },

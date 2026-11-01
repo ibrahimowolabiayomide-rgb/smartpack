@@ -1,18 +1,25 @@
 # Project architecture
 
-This document describes what exists after **Phase 1**, why it is built this way, and what is
-deliberately not built yet. It is updated as the product grows.
+This document describes what exists after **Phase 2**, why it is built this way, and what is
+deliberately not built yet. It is updated as the product grows. Phase 2 detail lives in
+[ROUTES_AND_MODULES.md](ROUTES_AND_MODULES.md), [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md),
+[COMPONENTS.md](COMPONENTS.md) and [FRONTEND_BACKEND.md](FRONTEND_BACKEND.md).
 
-## 1. Scope of Phase 1
+## 1. Scope
 
-Phase 1 builds the foundation only: repository, tooling, API skeleton, database connection and
-migrations, web application shell, design system, tests and CI.
+**Phase 1** built the foundation: repository, tooling, API skeleton, database connection and
+migrations, tests and CI.
+
+**Phase 2** built the web application proper: the design system, a responsive application shell,
+every route and its layout, reusable components, and the real integration between the web app and
+the API. No API or database change was needed.
 
 **Not built (later phases):** authentication and authorisation, company and worker management,
 SmartPack registration, QR and photo verification, GPS tracking, custody, inspections, alerts,
 reports, offline support, and any GPS hardware integration. The business database schema is also
 not designed yet: `apps/api/src/database/schema/` is intentionally empty, and the only migration
-enables PostGIS.
+enables PostGIS. Every business page exists so its place in the product is fixed, but each one
+states that its module is not built, names the phase that builds it, and holds no records.
 
 ## 2. System overview
 
@@ -73,8 +80,8 @@ Future business modules (`workers`, `smartpacks`, …) will each be a Nest modul
 | Concern      | Convention                                                                                                                                                                                               |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Prefix       | Everything is under `/api/v1`; documentation is at `/api/docs` (outside the prefix)                                                                                                                      |
-| Success body | `{ "data": <payload> }` — added by one global interceptor                                                                                                                                                |
-| Error body   | `{ "error": { code, message, statusCode, requestId, details? } }` — produced by one global filter                                                                                                        |
+| Success body | `{ "data": <payload> }`, added by one global interceptor                                                                                                                                                 |
+| Error body   | `{ "error": { code, message, statusCode, requestId, details? } }`, produced by one global filter                                                                                                         |
 | Error codes  | A closed set (`VALIDATION_FAILED`, `NOT_FOUND`, `INTERNAL_ERROR`, …) defined in `packages/shared`; clients branch on `code`, not `message`                                                               |
 | Request id   | Every response carries `x-request-id`, repeated in error bodies and logs. A caller-supplied id is kept only if it matches `[A-Za-z0-9._-]{8,64}`; otherwise a UUID is generated (prevents log injection) |
 | Validation   | Handlers declare Zod schemas: `@Query({ schema })`, `@Body({ schema })`. Nest 12's built-in Standard Schema pipe runs them; failures become `400 VALIDATION_FAILED` with per-field `details`             |
@@ -132,102 +139,67 @@ exception filter.
 
 ### 5.1 Routes
 
-| Route                                                                  | Group      | Rendering   | Purpose                                                                |
-| ---------------------------------------------------------------------- | ---------- | ----------- | ---------------------------------------------------------------------- |
-| `/`                                                                    | `(public)` | static      | Product entry point; states what is implemented and what is not        |
-| `/login`                                                               | `(public)` | static      | **Inert placeholder.** All controls disabled; nothing is sent anywhere |
-| `/dashboard`                                                           | `(app)`    | per request | Application shell with a live platform-status panel                    |
-| `/manifest.webmanifest`, `/robots.txt`, `/icon.svg`, `/apple-icon.png` | —          | static      | PWA manifest, crawler exclusion, icons                                 |
+The full table, with the backend each page is waiting for, is in
+[ROUTES_AND_MODULES.md](ROUTES_AND_MODULES.md). In summary:
 
-The `(public)` and `(app)` route groups let the shell wrap every future signed-in page through a
-single layout. **`/dashboard` is not protected**: authentication does not exist yet, and the page
-says so in a visible notice. A later phase will add the guard around the `(app)` layout.
+- `(public)` group: `/` (landing), `/login`, `/privacy`, `/terms`.
+- `(app)` group, inside the application shell: `/dashboard` (Overview) and
+  `/dashboard/{smartpacks,workers,verification,tracking,custody,inspections,alerts,reports,settings,help}`.
+- `not-found` for unknown paths; `manifest.webmanifest`, `robots.txt`, icons.
+
+**None of the `(app)` routes is protected**: authentication does not exist yet, and an amber banner
+on every page says so. A later phase adds the guard around the `(app)` layout.
 
 ### 5.2 Rendering model
 
 Server Components by default. Client components exist only where interaction requires them:
+navigation state (`nav-list`, `mobile-nav`), dialogs, drawers, tabs, menus and toasts, the form
+fields that hold input or visibility state, the sign-in form, the refresh button and the
+diagnostics dialog, and the Next.js error boundary.
 
-| File                              | Why it is a client component                       |
-| --------------------------------- | -------------------------------------------------- |
-| `components/shell/nav-list.tsx`   | Reads the current path to mark the active item     |
-| `components/shell/mobile-nav.tsx` | Opens/closes the drawer, closes on navigation      |
-| `app/(app)/dashboard/error.tsx`   | Next.js error boundaries must be client components |
+**Every page is rendered per request.** The root layout reads the optional `BRAND_*` environment
+variables with `connection()`, and the Overview and Help pages fetch live API data. This is a
+deliberate trade: branding can change without a rebuild, at the cost of no prerendered HTML.
 
-The dashboard fetches health data **on the server** (`lib/api-health.ts`), with `cache: 'no-store'`
-and a 4 second timeout, and validates the response against the shared Zod contract. Every failure
-(`unconfigured`, `unreachable`, `http-error`, `invalid-response`) is a described result that the
-page renders as an explicit error state; the function never throws and never reports success it
-did not observe. A 503 with a valid health body is shown as "Database unavailable", not as "API
-unreachable".
+Data is fetched **on the server** by `lib/api/client.ts` (`apiGet`): `cache: 'no-store'`, a 4 second
+timeout, an `x-request-id` header, and validation against the shared Zod contract. Every failure
+(`unconfigured`, `unreachable` with a timeout or network reason, `http-error`, `invalid-response`)
+is a described result that the page renders as an explicit state; the function never throws and
+never reports success it did not observe. A 503 with a valid health body is shown as
+"Database unavailable", not as "API unreachable". See [FRONTEND_BACKEND.md](FRONTEND_BACKEND.md).
 
 ### 5.3 Navigation honesty
 
-`lib/modules.ts` is the registry of navigation modules. A module is `available` only when its page
-exists; today only **Overview**. The nine others render as inert labelled "Planned" items (not links,
-`aria-disabled`, with screen-reader text "not yet available"). Promoting a module is a deliberate
-edit that sets `status` and `href` together; tests assert that no planned module has a route.
+`lib/modules.ts` is the single registry behind the sidebar, the mobile drawer, breadcrumbs, the
+landing page table and the Help page. A module is `available` only when it works end to end; today
+that is **Overview** and **Help & Documentation**. The other nine are `planned`: they are real links
+to real pages, so the structure can be reviewed, but they carry a "Planned" tag, a
+"Planned for Phase N" badge and a "Not available in this build" notice, and every control that
+would act on records is disabled with the reason stated. Promoting a module is a deliberate edit
+to the registry; a test asserts that every registered route has a page.
+
+The mapping of modules to phases is the project's own plan, made in Phase 2, and needs owner
+approval.
 
 ### 5.4 Responsive shell
 
-- From the `lg` breakpoint (1024 px): fixed 256 px navigation rail, top bar, content column
-  (max 64 rem).
+- From `lg` (1024 px): a fixed 256 px navigation rail, a top bar with the Help menu, and a content
+  column (maximum 72 rem) with Main and Secondary navigation groups.
 - Below `lg`: the rail is hidden; a menu button opens the same navigation in a drawer built on the
-  native `<dialog>` element. `showModal()` supplies the focus trap, Escape-to-close, inert
-  background and focus return to the opener without custom code. The drawer closes after a link is
-  followed or the route changes.
-- Verified in Chromium at 1440×900 (desktop) and 390×844 / Pixel 7 (mobile): no horizontal
-  overflow, no console errors, drawer opens/closes with button and Escape.
+  native `<dialog>` element (focus trap, Escape, focus return, background inert). The drawer closes
+  after navigation. Controls grow to 44 px on touch devices.
+- Record lists use a table from `md` (or `xl` when there are five or more columns) and a list of
+  labelled cards below that, so no table is squeezed or clipped on a tablet.
+- Verified in Chromium at 1440, 1280, 768, 390 and 360 px; see [TESTING.md](TESTING.md) and
+  [RESPONSIVE_DESIGN.md](RESPONSIVE_DESIGN.md).
 
 ### 5.5 Design system
 
-**Principles:** a restrained, document-like enterprise look; one accent; no decoration that carries
-no information.
-
-**Colour** is defined once as CSS variables in `src/styles/tokens.css` and exposed to Tailwind
-through `@theme`. Tailwind's default palette, shadows, radii and fonts are cleared, so an off-system
-class (`bg-purple-500`, `shadow-lg`) has no effect.
-
-| Role                  | Tokens (hex)                                                                         |
-| --------------------- | ------------------------------------------------------------------------------------ |
-| Page / panels         | `ground #efebe2`, `surface #f7f4ee`, `sunken #e6e1d5`, `line #d6cfbf`                |
-| Text                  | `ink #1c222b`, `ink-muted #4a5160`, `ink-subtle #565d68`                             |
-| Navigation rail       | `nav #171d26` with `nav-text`, `nav-muted`, `nav-dim`                                |
-| Accent (forest green) | `accent #2b6a4c`, `accent-hover`, `accent-tint`, `accent-text`                       |
-| Status                | muted amber (`warn`), brick (`danger`), stone (`neutral`) — always with a text label |
-
-No pure white or black is used (a test asserts it). **Contrast** is enforced by
-`src/styles/tokens.test.ts`, which parses `tokens.css` and fails the build if any pair drops below
-WCAG AA: e.g. body text on page 13.4:1, secondary text on panel 7.3:1, tertiary text on the
-darkest surface 5.1:1, white-on-accent buttons 5.9:1, planned labels on the rail 5.4:1; form-control
-borders and focus rings exceed the 3:1 non-text minimum.
-
-**Typography** — self-hosted from `src/app/fonts/` (no third-party requests at runtime or build):
-
-| Role                  | Typeface       | Licence     | Source                                                                                    |
-| --------------------- | -------------- | ----------- | ----------------------------------------------------------------------------------------- |
-| Interface text        | IBM Plex Sans  | SIL OFL 1.1 | `@fontsource/ibm-plex-sans` 5.3.0 (https://fontsource.org/fonts/ibm-plex-sans)            |
-| Headings, wordmark    | Source Serif 4 | SIL OFL 1.1 | `@fontsource-variable/source-serif-4` 5.3.1 (https://fontsource.org/fonts/source-serif-4) |
-| Identifiers, versions | IBM Plex Mono  | SIL OFL 1.1 | `@fontsource/ibm-plex-mono` 5.3.0 (https://fontsource.org/fonts/ibm-plex-mono)            |
-
-Only the Latin subset is bundled. The licence text for each family sits next to its files
-(`src/app/fonts/LICENSE-*.txt`). The OFL permits embedding and redistribution with the product;
-the fonts must not be sold on their own.
-
-**Icons** are drawn in-house (`components/icons`) on a 24 px grid, 1.5 px stroke, square caps; the
-brand mark is an SVG backpack. No icon library is used. PWA icons were generated from the same
-geometry.
-
-**Components:** `Button` / `ButtonLink` (primary, secondary, quiet; hover, active, disabled,
-loading), `TextField` (label, hint, error, `aria-describedby`, `aria-invalid`), `StatusBadge`,
-`EmptyState`, `LoadingState`, `ErrorState`, `Notice`, `Panel`, `DataTable`, `PageTitle`,
-`Breadcrumbs`. `EmptyState` is built and tested but has no page to appear on yet (no list
-screens exist), so it is not shown in the UI. Corner radii are 2/4/6 px; shadows are not used.
-
-**Accessibility:** skip link, one `h1` per page, landmarks, visible 2 px focus ring on every
-interactive element (never removed), `prefers-reduced-motion` honoured, scrollable tables are
-keyboard-focusable and named, status never relies on colour alone. Checked by component tests and
-Playwright (skip link, landmarks, focus ring, drawer keyboard behaviour). A full manual screen-reader
-audit has **not** been performed.
+See [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) for colour, typography, spacing, icons, states and
+accessibility, and [COMPONENTS.md](COMPONENTS.md) for the component inventory. In short: a
+restrained, document-like enterprise look with one accent; Tailwind's default theme is cleared so
+only project tokens exist; fonts are self-hosted; icons are drawn in-house; contrast is enforced by
+a test.
 
 ### 5.6 Progressive web app foundations
 
@@ -239,7 +211,7 @@ behaviour on real devices has not been tested.
 
 ## 6. Security
 
-### Implemented in Phase 1
+### Implemented (Phases 1 and 2)
 
 - No secrets in code; `.env*` ignored by Git, only placeholder `*.example` files tracked.
 - Environment validated at start-up; errors never print values.
@@ -250,13 +222,17 @@ behaviour on real devices has not been tested.
 - Web: `nosniff`, `X-Frame-Options: DENY`, `frame-ancestors 'none'`, `Permissions-Policy` disabling
   camera/microphone/geolocation/payment, HSTS in production, `X-Powered-By` removed, pages marked
   `noindex` (with `robots.txt` disallow), `API_URL` kept server-side.
+- Web (Phase 2): the sign-in form sends nothing anywhere, clears the password after a check and
+  stays disabled until the page has hydrated so a password can never be placed in a URL; branding
+  variables are validated, and an accent colour that fails contrast is ignored; the diagnostics text
+  copied from the Help menu contains no secrets or connection strings.
 - Database: TLS required by default in production; query and connection timeouts; restricted-role
   guidance.
 - Supply chain: exact dependency versions, committed lockfile, `--frozen-lockfile` in CI.
 
 ### Remaining security work (not done)
 
-This system is **not** secure enough for real company data after Phase 1.
+This system is **not** secure enough for real company data before Phase 3.
 
 1. **Authentication and authorisation** (sessions or tokens, password/credential handling, roles,
    protected routes and API endpoints, brute-force protection). Nothing is protected today.
@@ -281,8 +257,8 @@ This system is **not** secure enough for real company data after Phase 1.
 | Shared contracts     | Vitest                   | Schema acceptance and rejection                                                                                                           |
 | API units            | Jest                     | Config validation, request ids, error mapping, error summaries, health logic                                                              |
 | API integration      | Jest + Supertest         | The real app against real PostgreSQL: health up/down/degraded, envelopes, validation, headers, CORS, OpenAPI, production hardening        |
-| Web units/components | Vitest + Testing Library | Design-token contrast, module registry, health client, status views, UI components, navigation, drawer                                    |
-| End to end           | Playwright (Chromium)    | Production build + real API + real DB; desktop and mobile projects: pages, live status, responsive nav, keyboard/focus, manifest, headers |
+| Web units/components | Vitest + Testing Library | Design-token contrast, module registry, API client, branding, status views, form fields, dialogs, drawers, tabs, menus, toasts, shell     |
+| End to end           | Playwright (Chromium)    | Production build + real API + real DB at 1440, 1280, 768, 390 and 360 px: every route, navigation, forms, dialogs, axe, API failure modes |
 
 The "database unreachable" and "PostGIS missing" health paths are exercised against real servers
 (a closed port; a scratch database without the extension), not mocks.
@@ -307,16 +283,26 @@ The "database unreachable" and "PostGIS missing" health paths are exercised agai
 | Self-hosted fonts                                    | No third-party requests; no build-time network dependency; licences kept in repo                                                                                                                                      |
 | No icon library, no service worker                   | See 5.5 and 5.6                                                                                                                                                                                                       |
 | `typedRoutes`                                        | Broken internal links fail the type check                                                                                                                                                                             |
+| Planned modules are pages, not inert labels          | Phase 2 needs every screen reviewable; honesty comes from labels, notices and disabled controls rather than from hiding the page                                                                                      |
+| Runtime branding from server environment variables   | A company name, logo and accent can change without a rebuild; invalid values are ignored with a note. Cost: all pages are rendered per request                                                                        |
+| Native `<dialog>` for dialogs and drawers            | One accessible primitive for modal behaviour instead of a library                                                                                                                                                     |
+| Sign-in validates but sends nothing                  | No fake authentication; the form shows how input is checked and states plainly that sign-in is not enabled                                                                                                            |
+| `@axe-core/playwright` (dev dependency)              | Automated WCAG 2.2 AA checks on every route                                                                                                                                                                           |
 | API dev uses `node --env-file-if-exists`             | Reads `.env` without an extra dependency                                                                                                                                                                              |
 
 ## 9. Known limitations and open questions
 
-- `EmptyState` and `TextField` (enabled) have no live screen yet; they are covered by tests only.
-- The web app shows only Overview; the other nine navigation entries are placeholders by design.
+- `ConfirmDialog` is built and tested but no screen uses it yet, because no destructive action exists.
+  A tooltip component was not built: nothing needed one.
+- Settings is read-only: it shows the company profile taken from the `BRAND_*` variables.
+- The privacy and terms pages are placeholders that say they are not published. Legal text is the
+  company's to supply.
+- The module-to-phase mapping (SmartPacks 4, Workers and Custody 5, Verification and Inspections 6,
+  Tracking 7, Alerts 8, Reports 9, Settings 3) is a proposal.
 - GPS: only PostGIS is enabled. How positions from phones and from future hardware are ingested
   (and which sources "available GPS sources" means in practice) is to be specified in the
   architecture phase; no capability has been assumed.
 - Docker image, Vercel configuration and the CI workflow are written but could not be exercised in
-  the Phase 1 build environment (see [DEPLOYMENT.md](DEPLOYMENT.md)).
-- The Phase 1 end-to-end tests ran on Chromium only (desktop and mobile emulation). Firefox, Safari
-  and physical devices were not tested.
+  the build environment (see [DEPLOYMENT.md](DEPLOYMENT.md)).
+- Tests ran on Chromium only, with viewport emulation. Firefox, Safari, physical devices and a
+  manual screen-reader audit were not covered. See [TESTING.md](TESTING.md).

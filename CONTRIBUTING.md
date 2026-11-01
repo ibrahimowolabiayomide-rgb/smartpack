@@ -13,7 +13,7 @@ This is a company product. These conventions keep the history readable and the c
 3. **Justify dependencies.** Add a package only for a concrete need, pin its exact version, and say
    why in the pull request. Use pnpm only.
 4. **Never commit secrets.** `.env` files are ignored; only `*.example` files with placeholders are
-   tracked. If a secret is committed by mistake, rotate it — removing it from history is not enough.
+   tracked. If a secret is committed by mistake, rotate it; removing it from history is not enough.
 5. **Validate on the server.** Client-side validation is a convenience; the API validates all input.
 
 ## Branches
@@ -54,7 +54,7 @@ pnpm typecheck
 pnpm test
 pnpm test:integration   # needs TEST_DATABASE_URL
 pnpm build
-pnpm test:e2e           # needs a Playwright browser
+pnpm test:e2e           # quick; needs a Playwright browser (test:e2e:full runs all five widths)
 ```
 
 CI runs the same sequence. A pull request should state what changed and why, how it was verified,

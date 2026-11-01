@@ -1,7 +1,7 @@
 import type { HealthReport } from '@smartpack/shared';
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { ApiHealthResult } from '@/lib/api-health';
+import type { ApiHealthResult } from '@/lib/api/health';
 import {
   PlatformStatusView,
   buildRows,
@@ -71,7 +71,7 @@ describe('PlatformStatusView with a report', () => {
       checks: { database: { status: 'down', latencyMs: null }, postgis: { status: 'unknown' } },
     });
     const latency = rows.find((row) => row.label === 'Database response time');
-    expect(latency?.value).toEqual({ mono: '—' });
+    expect(latency?.value).toEqual({ mono: 'Not measured' });
   });
 });
 
@@ -95,6 +95,30 @@ describe('PlatformStatusView failures', () => {
     expect(within(alert).getByText(detail)).toBeInTheDocument();
     expect(screen.queryByText('Connected')).not.toBeInTheDocument();
     expect(screen.queryByText('All systems operational')).not.toBeInTheDocument();
+  });
+
+  it('shows the request id so a failure can be traced in the API log', () => {
+    render(
+      <PlatformStatusView
+        result={{ kind: 'unreachable', reason: 'network', requestId: 'req-12345678' }}
+      />,
+    );
+    expect(
+      within(screen.getByRole('alert')).getByText(/Request ID: req-12345678/),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the API error code when the API supplied one', () => {
+    render(
+      <PlatformStatusView
+        result={{
+          kind: 'http-error',
+          httpStatus: 404,
+          error: { code: 'NOT_FOUND', message: 'x' },
+        }}
+      />,
+    );
+    expect(within(screen.getByRole('alert')).getByText(/HTTP 404, NOT_FOUND/)).toBeInTheDocument();
   });
 
   it('gives each failure kind its own title', () => {

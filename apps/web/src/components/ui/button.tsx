@@ -20,8 +20,8 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-meta',
-  md: 'h-10 px-4 text-ui',
+  sm: 'h-8 px-3 text-meta pointer-coarse:h-11',
+  md: 'h-10 px-4 text-ui pointer-coarse:h-11',
 };
 
 /** Class names for anything that must look like a button (links, triggers). */

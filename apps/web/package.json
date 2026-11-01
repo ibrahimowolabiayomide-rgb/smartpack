@@ -11,15 +11,18 @@
     "typecheck": "next typegen && tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --project=desktop-1440 --project=mobile-390",
+    "test:e2e:full": "playwright test"
   },
   "dependencies": {
     "@smartpack/shared": "workspace:*",
     "next": "16.4.3",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1",
     "@smartpack/config": "workspace:*",
     "@tailwindcss/postcss": "4.3.3",

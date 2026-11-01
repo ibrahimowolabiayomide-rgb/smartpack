@@ -78,7 +78,7 @@ export async function configureApp(app: NestFastifyApplication, config: AppConfi
         .setTitle('SmartPack API')
         .setDescription(
           'REST API for the SmartPack Asset Intelligence Platform. ' +
-            'Phase 1 exposes the health endpoint only; business modules are not implemented yet.',
+            'Only the health endpoint is implemented; business modules are not implemented yet.',
         )
         .setVersion(config.version)
         .build(),

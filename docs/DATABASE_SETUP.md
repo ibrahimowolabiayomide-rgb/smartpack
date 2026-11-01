@@ -11,7 +11,7 @@ You need two databases locally: one for development and one for automated tests.
 | Development | `smartpack_dev`  | `DATABASE_URL`      | `apps/api/.env`            |
 | Tests       | `smartpack_test` | `TEST_DATABASE_URL` | `apps/api/.env.test.local` |
 
-## Option A — Docker Compose (simplest)
+## Option A: Docker Compose (simplest)
 
 Requires Docker with Compose. **Unverified in the Phase 1 build environment**: its Docker daemon
 could not run, so the Compose file was validated for syntax only (`docker compose config`).
@@ -33,7 +33,7 @@ The container's user is a superuser, which the migrations (they create an extens
 integration tests (they create a temporary database) need. Stop with `docker compose down`; add
 `-v` to also delete the data. The port is bound to `127.0.0.1` only.
 
-## Option B — Native PostgreSQL (no Docker)
+## Option B: Native PostgreSQL (no Docker)
 
 This path **was** verified (PostgreSQL 16.15, PostGIS 3.4.2, Ubuntu 24.04).
 

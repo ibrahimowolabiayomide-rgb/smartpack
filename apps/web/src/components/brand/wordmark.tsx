@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { cn } from '@/lib/cn';
 import { PRODUCT_NAME } from '@/lib/app-info';
 
@@ -22,10 +23,27 @@ export function BrandMark({ size = 28, className }: { size?: number; className?:
   );
 }
 
-export function Wordmark({ className }: { className?: string }) {
+/**
+ * The product mark plus name. When the company has supplied a logo (BRAND_LOGO_URL) it replaces
+ * the drawn mark. `unoptimized` because the logo is a deployment-time file or an arbitrary https
+ * address that the image optimiser has not been configured for. The logo is decorative here: the
+ * product name next to it carries the meaning.
+ */
+export function Wordmark({ className, logoSrc }: { className?: string; logoSrc?: string | null }) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <BrandMark />
+      {logoSrc ? (
+        <Image
+          src={logoSrc}
+          alt=""
+          width={28}
+          height={28}
+          unoptimized
+          className="size-7 object-contain"
+        />
+      ) : (
+        <BrandMark />
+      )}
       <span className="font-serif text-lead font-semibold tracking-tight">{PRODUCT_NAME}</span>
     </span>
   );

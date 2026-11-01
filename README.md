@@ -3,12 +3,13 @@
 SmartPack is a company platform for registering, identifying, verifying and tracking the company's
 physical SmartPack backpacks, and for recording who holds each bag.
 
-> **Status: Phase 1 — project foundation.** This repository currently contains the monorepo, the
-> API foundation (health endpoint, validation, error handling, database connection and
-> migrations), the web application shell and design system, and the test and CI setup. **None of
-> the business modules exist yet** (SmartPacks, Workers, Verification, Tracking, Custody,
-> Inspections, Alerts, Reports) and **there is no authentication**. The web app shows these modules
-> as "Planned" and contains no company data. See [docs/PHASE_1_REPORT.md](docs/PHASE_1_REPORT.md).
+> **Status: Phase 2, application shell and frontend-backend integration.** The web application
+> now has a complete design system, a responsive shell, every planned page and a real, tested
+> connection to the API. **None of the business modules is built yet** (SmartPacks, Workers,
+> Verification, Tracking, Custody, Inspections, Alerts, Reports) and **there is no authentication**.
+> Those pages exist so their place in the product is fixed; each one says it is planned, names its
+> phase and holds no records or invented data. Only API health is shown, as system status. See
+> [docs/PHASE_2_REPORT.md](docs/PHASE_2_REPORT.md).
 
 ## Technology
 
@@ -30,7 +31,7 @@ Exact versions are pinned in each `package.json` and in `pnpm-lock.yaml`.
 
 - **Node.js 22.12 or newer** (the repository pins 22.23.4 in `.node-version`)
 - **pnpm 10.28 or newer** (`corepack enable` installs the exact version from `packageManager`)
-- **PostgreSQL 16 with PostGIS** — via Docker Compose or a native install
+- **PostgreSQL 16 with PostGIS** via Docker Compose or a native install
   ([docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md))
 - **Git**
 
@@ -79,7 +80,7 @@ pnpm dev
 
 | Service           | URL                                               |
 | ----------------- | ------------------------------------------------- |
-| Web application   | http://localhost:3000                             |
+| Web application   | http://localhost:3000 (`/dashboard` is the app)   |
 | API               | http://localhost:4000/api/v1                      |
 | Health endpoint   | http://localhost:4000/api/v1/health               |
 | API documentation | http://localhost:4000/api/docs (development only) |
@@ -88,19 +89,20 @@ pnpm dev
 
 All commands run from the repository root.
 
-| Command                 | What it does                                                                       |
-| ----------------------- | ---------------------------------------------------------------------------------- |
-| `pnpm install`          | Install dependencies for every workspace package                                   |
-| `pnpm dev`              | Run shared (watch), API (watch) and web (dev server) together                      |
-| `pnpm build`            | Build shared, API and web for production                                           |
-| `pnpm lint`             | ESLint across all packages                                                         |
-| `pnpm format:check`     | Verify Prettier formatting (`pnpm format` rewrites files)                          |
-| `pnpm typecheck`        | TypeScript strict checks across all packages                                       |
-| `pnpm test`             | Unit tests: shared (Vitest), API (Jest), web (Vitest)                              |
-| `pnpm test:integration` | API integration tests against a real PostgreSQL (`TEST_DATABASE_URL`)              |
-| `pnpm test:e2e`         | Builds everything, then runs Playwright against the production build               |
-| `pnpm db:generate`      | Generate a SQL migration from schema changes (add `--custom --name=x` for raw SQL) |
-| `pnpm db:migrate`       | Build shared + API, then apply pending migrations to `DATABASE_URL`                |
+| Command                 | What it does                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------- |
+| `pnpm install`          | Install dependencies for every workspace package                                         |
+| `pnpm dev`              | Run shared (watch), API (watch) and web (dev server) together                            |
+| `pnpm build`            | Build shared, API and web for production                                                 |
+| `pnpm lint`             | ESLint across all packages                                                               |
+| `pnpm format:check`     | Verify Prettier formatting (`pnpm format` rewrites files)                                |
+| `pnpm typecheck`        | TypeScript strict checks across all packages                                             |
+| `pnpm test`             | Unit tests: shared (Vitest), API (Jest), web (Vitest)                                    |
+| `pnpm test:integration` | API integration tests against a real PostgreSQL (`TEST_DATABASE_URL`)                    |
+| `pnpm test:e2e`         | Builds everything, then runs the quick end-to-end set (1440 and 390 px); about 4 minutes |
+| `pnpm test:e2e:full`    | Builds everything, then runs end-to-end tests at all five widths; about 9 minutes        |
+| `pnpm db:generate`      | Generate a SQL migration from schema changes (add `--custom --name=x` for raw SQL)       |
+| `pnpm db:migrate`       | Build shared + API, then apply pending migrations to `DATABASE_URL`                      |
 
 One-time setup for end-to-end tests: `pnpm --filter @smartpack/web exec playwright install chromium`.
 
@@ -124,7 +126,7 @@ smartpack/
   packages/
     shared/           Zod contracts and types used by both apps
     config/           Shared TypeScript, ESLint and Prettier configuration
-  docs/               Architecture, setup, environment, database, deployment, phase report
+  docs/               Architecture, routes, design system, components, setup, testing, reports
   docker/             Database initialisation for local Docker Compose
   .github/workflows/  Continuous integration
   docker-compose.yml  Local PostgreSQL + PostGIS
@@ -138,5 +140,13 @@ smartpack/
 - [Environment variables](docs/ENVIRONMENT_VARIABLES.md)
 - [Database setup](docs/DATABASE_SETUP.md)
 - [Deployment](docs/DEPLOYMENT.md)
+- [Routes and modules](docs/ROUTES_AND_MODULES.md)
+- [Design system](docs/DESIGN_SYSTEM.md)
+- [Components](docs/COMPONENTS.md)
+- [Frontend and backend communication](docs/FRONTEND_BACKEND.md)
+- [Responsive design](docs/RESPONSIVE_DESIGN.md)
+- [Testing](docs/TESTING.md)
+- [Deferred and not done](docs/DEFERRED.md)
 - [Phase 1 report](docs/PHASE_1_REPORT.md)
+- [Phase 2 report](docs/PHASE_2_REPORT.md)
 - [Contributing](CONTRIBUTING.md)

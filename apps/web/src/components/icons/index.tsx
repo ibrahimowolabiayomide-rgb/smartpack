@@ -182,3 +182,72 @@ export function SpinnerIcon(props: IconProps) {
     </Svg>
   );
 }
+
+export function ChevronDownIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 9l7 7 7-7" />
+    </Svg>
+  );
+}
+
+export function SearchIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="10.5" cy="10.5" r="6" />
+      <path d="M15 15l5.5 5.5" />
+    </Svg>
+  );
+}
+
+export function EyeIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="2.75" />
+    </Svg>
+  );
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2.5 12S6 5.5 12 5.5c1.6 0 3 .5 4.2 1.1M21.5 12S18 18.5 12 18.5c-1.6 0-3-.5-4.2-1.1" />
+      <path d="M9.5 9.7a3.5 3.5 0 0 0 4.8 4.8M4 4l16 16" />
+    </Svg>
+  );
+}
+
+export function HelpIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.7.4-1.1.9-1.1 1.8M12 16.75v.25" />
+    </Svg>
+  );
+}
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M5 19.5h14" />
+    </Svg>
+  );
+}
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M5 12.5l4.5 4.5L19 7.5" />
+    </Svg>
+  );
+}
+
+export function CopyIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <rect x="8.5" y="8.5" width="11" height="11" />
+      <path d="M15.5 8.5v-4h-11v11h4" />
+    </Svg>
+  );
+}

@@ -79,7 +79,7 @@ jobs:
         run: pnpm --filter @smartpack/web exec playwright install --with-deps chromium
 
       - name: End-to-end tests (production build)
-        run: pnpm test:e2e
+        run: pnpm test:e2e:full
 
       - name: Upload Playwright report
         if: failure()

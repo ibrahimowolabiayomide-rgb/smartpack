@@ -1,7 +1,7 @@
 import type { HealthReport } from '@smartpack/shared';
 import { ErrorState } from '@/components/ui/error-state';
 import { StatusBadge, type StatusTone } from '@/components/ui/status-badge';
-import type { ApiHealthResult } from '@/lib/api-health';
+import type { ApiHealthResult } from '@/lib/api/health';
 
 const timestampFormat = new Intl.DateTimeFormat('en-GB', {
   dateStyle: 'medium',
@@ -40,7 +40,7 @@ export function buildRows(report: HealthReport): Row[] {
     },
     {
       label: 'Database response time',
-      value: { mono: database.latencyMs === null ? '—' : `${database.latencyMs} ms` },
+      value: { mono: database.latencyMs === null ? 'Not measured' : `${database.latencyMs} ms` },
     },
     { label: 'API version', value: { mono: report.version } },
     { label: 'Environment', value: { mono: report.environment } },
@@ -52,6 +52,11 @@ const overall: Record<HealthReport['status'], { tone: StatusTone; text: string }
   degraded: { tone: 'warning', text: 'Degraded' },
   error: { tone: 'critical', text: 'Database unavailable' },
 };
+
+/** Appends the request id, which locates the call in the API log, when there is one. */
+function withRequestId(detail: string, requestId: string | undefined): string {
+  return requestId ? `${detail} Request ID: ${requestId}` : detail;
+}
 
 export function describeFailure(result: Exclude<ApiHealthResult, { kind: 'report' }>): {
   title: string;
@@ -74,21 +79,27 @@ export function describeFailure(result: Exclude<ApiHealthResult, { kind: 'report
         title: 'The API could not be reached',
         description:
           'No response came back from the API. Check that it is running and that the web application is pointed at it.',
-        detail: result.reason === 'timeout' ? 'The request timed out.' : 'The connection failed.',
+        detail: withRequestId(
+          result.reason === 'timeout' ? 'The request timed out.' : 'The connection failed.',
+          result.requestId,
+        ),
       };
     case 'http-error':
       return {
         title: 'The API returned an unexpected status',
         description:
           'The API (or a gateway in front of it) answered, but not with a health report.',
-        detail: `HTTP ${result.httpStatus}`,
+        detail: withRequestId(
+          `HTTP ${result.httpStatus}${result.error ? `, ${result.error.code}` : ''}.`,
+          result.requestId,
+        ),
       };
     case 'invalid-response':
       return {
         title: 'The API response was not recognised',
         description:
           'The API answered, but the body did not match the expected health report format.',
-        detail: `HTTP ${result.httpStatus}`,
+        detail: withRequestId(`HTTP ${result.httpStatus}.`, result.requestId),
       };
   }
 }

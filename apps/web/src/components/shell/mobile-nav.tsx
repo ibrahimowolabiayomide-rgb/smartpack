@@ -2,28 +2,24 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Wordmark } from '@/components/brand/wordmark';
 import { CloseIcon, MenuIcon } from '@/components/icons';
+import { Drawer } from '@/components/ui/drawer';
 import { NavList } from './nav-list';
 
 /**
- * Navigation drawer for narrow screens, built on the native <dialog> element.
+ * Navigation drawer for screens narrower than the desktop breakpoint. It is the same navigation
+ * as the sidebar, in a native-<dialog> drawer (focus trap, Escape, focus return, inert page).
  *
- * showModal() gives, without custom code: a focus trap, Escape to close, inert page content
- * behind it, and focus returning to the opening button. That is more reliable than a hand-written
- * overlay and needs no extra dependency.
+ * "Open" is stored as the path it was opened on, so any navigation, including browser back and
+ * forward, closes it without an effect.
  */
-export function MobileNav() {
-  const dialogRef = useRef<HTMLDialogElement>(null);
+export function MobileNav({ logoSrc }: { logoSrc?: string | null }) {
   const pathname = usePathname();
-
-  // Close after any navigation (including browser back/forward while the drawer is open).
-  useEffect(() => {
-    dialogRef.current?.close();
-  }, [pathname]);
-
-  const close = () => dialogRef.current?.close();
+  const [openedOn, setOpenedOn] = useState<string | null>(null);
+  const open = openedOn === pathname;
+  const close = () => setOpenedOn(null);
 
   return (
     <>
@@ -31,37 +27,34 @@ export function MobileNav() {
         type="button"
         aria-label="Open navigation menu"
         aria-haspopup="dialog"
-        onClick={() => dialogRef.current?.showModal()}
-        className="-ml-2 inline-flex size-10 items-center justify-center rounded-md text-ink hover:bg-sunken active:bg-line lg:hidden"
+        onClick={() => setOpenedOn(pathname)}
+        className="-ml-2 inline-flex size-11 items-center justify-center rounded-md text-ink hover:bg-sunken active:bg-line lg:hidden"
       >
         <MenuIcon />
       </button>
-      <dialog
-        ref={dialogRef}
-        aria-label="Main navigation"
-        onClick={(event) => {
-          // A click on the backdrop targets the dialog element itself (the panel fills the box).
-          if (event.target === dialogRef.current) close();
-        }}
-        className="on-dark m-0 h-dvh max-h-none w-80 max-w-[85vw] border-0 bg-nav p-0 text-nav-text backdrop:bg-ink/55 open:flex open:flex-col"
+      <Drawer
+        open={open}
+        onOpenChange={(next) => (next ? setOpenedOn(pathname) : close())}
+        label="Main navigation"
+        dark
       >
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-nav-line pr-2 pl-5">
           <Link href="/" onClick={close} className="rounded-sm" aria-label="SmartPack home">
-            <Wordmark />
+            <Wordmark logoSrc={logoSrc} />
           </Link>
           <button
             type="button"
             aria-label="Close navigation menu"
             onClick={close}
-            className="inline-flex size-10 items-center justify-center rounded-md text-nav-muted hover:bg-nav-raised hover:text-nav-text"
+            className="inline-flex size-11 items-center justify-center rounded-md text-nav-muted hover:bg-nav-raised hover:text-nav-text"
           >
             <CloseIcon />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-3 py-5">
+        <div className="flex-1 overflow-y-auto px-3 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <NavList onNavigate={close} />
         </div>
-      </dialog>
+      </Drawer>
     </>
   );
 }

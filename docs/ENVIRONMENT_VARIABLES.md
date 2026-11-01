@@ -18,7 +18,7 @@ Local file: `apps/api/.env` (ignored by Git). Template: `apps/api/.env.example`.
 | `LOG_LEVEL`                      | no             | `debug` (dev), `info` (production), `silent` (test) | no      | `fatal`, `error`, `warn`, `info`, `debug`, `trace` or `silent`.                                                      |
 | `CORS_ALLOWED_ORIGINS`           | **production** | `http://localhost:3000,http://127.0.0.1:3000` (dev) | no      | Comma-separated bare origins (`https://app.example.com`). No path, no trailing slash. Must be `https` in production. |
 | `ENABLE_API_DOCS`                | no             | `true` (dev), `false` (production)                  | no      | `true` or `false`. Publishes Swagger UI at `/api/docs` and JSON at `/api/docs-json`.                                 |
-| `DATABASE_URL`                   | **always**     | —                                                   | **yes** | `postgres://` or `postgresql://` URL. Must not contain `sslmode`/`ssl` parameters.                                   |
+| `DATABASE_URL`                   | **always**     | none                                                | **yes** | `postgres://` or `postgresql://` URL. Must not contain `sslmode`/`ssl` parameters.                                   |
 | `DATABASE_SSL`                   | no             | `disable` (dev/test), `require` (production)        | no      | `disable`, `require` (encrypted, certificate verified) or `no-verify` (encrypted, not verified; discouraged).        |
 | `DATABASE_POOL_MAX`              | no             | `10`                                                | no      | Maximum pooled connections, 1–100.                                                                                   |
 | `DATABASE_CONNECTION_TIMEOUT_MS` | no             | `5000`                                              | no      | How long to wait for a connection, 1–60000.                                                                          |
@@ -46,16 +46,27 @@ migration job does not need the API's other settings.
 
 Local file: `apps/web/.env.local` (ignored). Template: `apps/web/.env.example`.
 
-| Variable  | Required                   | Default (development)          | Secret | Description                                                        |
-| --------- | -------------------------- | ------------------------------ | ------ | ------------------------------------------------------------------ |
-| `API_URL` | **production and preview** | `http://127.0.0.1:4000/api/v1` | no     | Base URL of the API including `/api/v1`, without a trailing slash. |
+| Variable             | Required                   | Default (development)          | Secret | Description                                                                                                              |
+| -------------------- | -------------------------- | ------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `API_URL`            | **production and preview** | `http://127.0.0.1:4000/api/v1` | no     | Base URL of the API including `/api/v1`, without a trailing slash.                                                       |
+| `BRAND_COMPANY_NAME` | no                         | unset (no company named)       | no     | Company name, 1 to 80 characters. Shown in the sidebar footer, on sign-in, in the footer and on Settings.                |
+| `BRAND_LOGO_URL`     | no                         | unset (SmartPack mark)         | no     | A path in `apps/web/public` starting with `/`, or an `https` URL. Anything else is ignored.                              |
+| `BRAND_ACCENT_COLOR` | no                         | unset (forest green)           | no     | The single accent colour as `#rrggbb`. Ignored if text on it, or on the page, would fall below WCAG AA contrast (4.5:1). |
 
-`API_URL` is read **on the server only**. The web app has no `NEXT_PUBLIC_*` variables in Phase 1.
+All web variables are read **on the server only**. The web app has no `NEXT_PUBLIC_*` variables.
 Anything prefixed `NEXT_PUBLIC_` is copied into the browser bundle, so never put a secret behind
 that prefix.
 
-Outside development a missing `API_URL` is reported on the dashboard instead of silently using
+Outside development a missing `API_URL` is reported on the Overview page instead of silently using
 localhost.
+
+### Branding variables
+
+`BRAND_*` values are read for every request, so changing them needs a restart of the web server but
+not a rebuild. An invalid value never breaks the interface: it is ignored, the default is used and
+Settings shows a note naming the variable (never its value). With none set the application names no
+company; nothing is invented. Because the root layout reads them per request, every page is rendered
+on demand rather than prerendered (see [DEPLOYMENT.md](DEPLOYMENT.md)).
 
 ## Tests
 

@@ -8,8 +8,7 @@ gives the exact steps and says what was and was not verified.
 Browser ──► Web (Next.js, Vercel) ──server-side fetch──► API (NestJS, Node host) ──► PostgreSQL + PostGIS
 ```
 
-In Phase 1 the **browser never calls the API directly**: the dashboard fetches health data on the
-server. CORS is nevertheless configured and tested for when later phases add browser calls.
+The **browser never calls the API directly**: the web app fetches data on the server. CORS is nevertheless configured and tested for when later phases add browser calls.
 
 ## What was verified
 
@@ -62,17 +61,20 @@ workspace package, so Vercel must be allowed to read files outside `apps/web`.
    ([Vercel: Corepack](https://vercel.com/docs/builds/configure-a-build#corepack))
 8. Deploy. Every pull request then receives a Preview deployment.
 
-The dashboard route is rendered per request (it shows live data), so it is served by a Vercel
-function; the landing and sign-in pages are static.
+Every page is rendered per request: the root layout reads the `BRAND_*` variables at request time
+(and the Overview and Help pages show live API data), so all pages are served by Vercel functions.
+Only the icons, manifest and `robots.txt` are static. Set `BRAND_COMPANY_NAME`, `BRAND_LOGO_URL`
+and `BRAND_ACCENT_COLOR` in the Vercel project's environment variables if the company wants its own
+name, logo or accent colour (all optional; see [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md)).
 
-If `API_URL` is missing, the dashboard shows "The API address is not configured" rather than
+If `API_URL` is missing, the Overview page shows "The API address is not configured" rather than
 failing silently.
 
 ## Backend API
 
 The API is a **long-running Node.js server**. It is not a static site and must not be deployed to
 Vercel as one (it also relies on a persistent connection pool). Suitable hosts include any
-container or Node platform — for example Render, Railway or Fly.io — or your own server with Docker
+container or Node platform (for example Render, Railway or Fly.io) or your own server with Docker
 or systemd. Choose one that supports: Node 22, environment secrets, TLS termination, health checks,
 and a one-off command for migrations.
 
@@ -94,7 +96,7 @@ and a one-off command for migrations.
 
 - Health check path: `GET /api/v1/health` (200 healthy; 503 when the database is down)
 
-### Option 1 — Container
+### Option 1: Container
 
 ```bash
 docker build -f apps/api/Dockerfile -t smartpack-api .          # from the repository root
@@ -104,7 +106,7 @@ docker run -d --env-file prod.env -p 4000:4000 smartpack-api
 
 (Unverified: see the table above. Fix any build error in the Dockerfile before relying on it.)
 
-### Option 2 — Build on the host
+### Option 2: Build on the host
 
 Verified procedure (this is what the Dockerfile automates):
 

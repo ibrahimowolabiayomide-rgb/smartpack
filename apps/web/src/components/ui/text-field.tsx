@@ -1,5 +1,6 @@
-import { useId, type ComponentProps } from 'react';
+import type { ComponentProps } from 'react';
 import { cn } from '@/lib/cn';
+import { controlClass, FieldShell, useFieldIds } from './field-shell';
 
 export interface TextFieldProps extends Omit<ComponentProps<'input'>, 'id'> {
   label: string;
@@ -16,39 +17,23 @@ export interface TextFieldProps extends Omit<ComponentProps<'input'>, 'id'> {
  * hint/error text is linked through aria-describedby.
  */
 export function TextField({ label, hint, error, id, className, ...props }: TextFieldProps) {
-  const generatedId = useId();
-  const inputId = id ?? generatedId;
-  const hintId = hint ? `${inputId}-hint` : undefined;
-  const errorId = error ? `${inputId}-error` : undefined;
-  const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined;
-
+  const ids = useFieldIds(id, hint, error);
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={inputId} className="text-meta font-medium text-ink">
-        {label}
-      </label>
+    <FieldShell
+      id={ids.id}
+      label={label}
+      hint={hint}
+      hintId={ids.hintId}
+      error={error}
+      errorId={ids.errorId}
+    >
       <input
-        id={inputId}
+        id={ids.id}
         aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy}
-        className={cn(
-          'h-10 w-full rounded-md border bg-surface px-3 text-ui text-ink placeholder:text-ink-subtle',
-          'disabled:cursor-not-allowed disabled:bg-sunken disabled:text-ink-subtle',
-          error ? 'border-danger-text' : 'border-line-strong',
-          className,
-        )}
+        aria-describedby={ids.describedBy}
+        className={cn(controlClass, error ? 'border-danger-text' : 'border-line-strong', className)}
         {...props}
       />
-      {hint ? (
-        <p id={hintId} className="text-meta text-ink-subtle">
-          {hint}
-        </p>
-      ) : null}
-      {error ? (
-        <p id={errorId} role="alert" className="text-meta font-medium text-danger-text">
-          {error}
-        </p>
-      ) : null}
-    </div>
+    </FieldShell>
   );
 }

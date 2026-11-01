@@ -88,6 +88,11 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* A modal dialog or drawer is open: the page behind it must not scroll. */
+  html:has(dialog[open]) {
+    overflow: hidden;
+  }
+
   ::selection {
     background-color: var(--accent-tint);
     color: var(--ink);

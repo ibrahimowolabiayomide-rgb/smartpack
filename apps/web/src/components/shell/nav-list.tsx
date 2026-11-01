@@ -3,16 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/cn';
-import { NAV_MODULES, type NavModule } from '@/lib/modules';
+import { isModuleActive, modulesInGroup, type NavGroup, type NavModule } from '@/lib/modules';
 
-const itemBase = 'flex items-center gap-3 rounded-md px-3 py-2 text-ui';
+const GROUP_LABELS: Record<NavGroup, string> = { main: 'Main', secondary: 'Secondary' };
 
-function AvailableItem({
+function NavItem({
   module,
   active,
   onNavigate,
 }: {
-  module: NavModule & { href: NonNullable<NavModule['href']> };
+  module: NavModule;
   active: boolean;
   onNavigate?: () => void;
 }) {
@@ -23,76 +23,63 @@ function AvailableItem({
       aria-current={active ? 'page' : undefined}
       onClick={onNavigate}
       className={cn(
-        itemBase,
-        'font-medium',
+        'flex items-center gap-3 rounded-md px-3 py-2 text-ui font-medium pointer-coarse:py-3',
         active
           ? 'bg-nav-raised text-nav-text'
           : 'text-nav-muted hover:bg-nav-raised hover:text-nav-text',
       )}
     >
       <Icon className="shrink-0" />
-      {module.label}
+      <span className="flex-1">{module.label}</span>
+      {module.status === 'planned' ? (
+        // Truthful status in the navigation itself: the page exists, the capability does not.
+        <span className="text-[0.6875rem] font-medium tracking-wider text-nav-dim uppercase">
+          Planned<span className="sr-only">, not yet available</span>
+        </span>
+      ) : null}
     </Link>
   );
 }
 
-function PlannedItem({ module }: { module: NavModule }) {
-  const Icon = module.icon;
+function NavGroupList({
+  group,
+  pathname,
+  onNavigate,
+}: {
+  group: NavGroup;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
   return (
-    // Not a link: the page does not exist yet. aria-disabled + the visible "Planned" tag make
-    // that explicit to everyone, and it is skipped by keyboard focus because nothing can be done.
-    <span aria-disabled="true" className={cn(itemBase, 'cursor-not-allowed text-nav-dim')}>
-      <Icon className="shrink-0" />
-      <span className="flex-1">{module.label}</span>
-      <span className="text-[0.6875rem] font-medium tracking-wider uppercase">
-        <span className="sr-only">(</span>Planned
-        <span className="sr-only">, not yet available)</span>
-      </span>
-    </span>
+    <nav aria-label={GROUP_LABELS[group]}>
+      <ul className="flex flex-col gap-0.5">
+        {modulesInGroup(group).map((module) => (
+          <li key={module.id}>
+            <NavItem
+              module={module}
+              active={isModuleActive(pathname, module.href)}
+              onNavigate={onNavigate}
+            />
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 
 /**
- * The primary navigation list. Available modules are links; planned modules are inert labels.
- * Used by both the desktop sidebar and the mobile drawer.
+ * The primary and secondary navigation. Every item is a real link to an existing page; modules
+ * whose capability is not built yet say "Planned" beside their name. Used by the desktop sidebar
+ * and the mobile drawer. The current page is marked with `aria-current`.
  */
 export function NavList({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const available = NAV_MODULES.filter((m) => m.status === 'available');
-  const planned = NAV_MODULES.filter((m) => m.status === 'planned');
-
   return (
-    <nav aria-label="Main" className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="px-3 pb-1 text-[0.6875rem] font-semibold tracking-wider text-nav-dim uppercase">
-          Workspace
-        </h2>
-        <ul className="flex flex-col gap-0.5">
-          {available.map((module) =>
-            module.href ? (
-              <li key={module.id}>
-                <AvailableItem
-                  module={{ ...module, href: module.href }}
-                  active={pathname === module.href}
-                  onNavigate={onNavigate}
-                />
-              </li>
-            ) : null,
-          )}
-        </ul>
+    <div className="flex flex-col gap-5">
+      <NavGroupList group="main" pathname={pathname} onNavigate={onNavigate} />
+      <div className="border-t border-nav-line pt-5">
+        <NavGroupList group="secondary" pathname={pathname} onNavigate={onNavigate} />
       </div>
-      <div className="flex flex-col gap-1">
-        <h2 className="px-3 pb-1 text-[0.6875rem] font-semibold tracking-wider text-nav-dim uppercase">
-          Modules
-        </h2>
-        <ul className="flex flex-col gap-0.5">
-          {planned.map((module) => (
-            <li key={module.id}>
-              <PlannedItem module={module} />
-            </li>
-          ))}
-        </ul>
-      </div>
-    </nav>
+    </div>
   );
 }
