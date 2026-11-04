@@ -27,6 +27,10 @@ export const apiErrorCodeSchema = z.enum([
   'PAYLOAD_TOO_LARGE',
   'UNSUPPORTED_MEDIA_TYPE',
   'RATE_LIMITED',
+  /** Sign-in failed. Deliberately the same for unknown address, wrong password and blocked account. */
+  'INVALID_CREDENTIALS',
+  /** A one-time link (invitation, password reset, email verification) is invalid, used or expired. */
+  'INVALID_TOKEN',
   'SERVICE_UNAVAILABLE',
   'INTERNAL_ERROR',
 ]);

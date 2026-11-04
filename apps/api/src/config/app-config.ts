@@ -5,6 +5,7 @@ import {
   envSchema,
   parseOriginList,
   type DATABASE_SSL_MODES,
+  type EMAIL_PROVIDERS,
   type LOG_LEVELS,
   type NODE_ENVS,
 } from './env.schema.js';
@@ -19,6 +20,33 @@ export interface DatabaseConfig {
   queryTimeoutMs: number;
 }
 
+export type EmailProviderName = (typeof EMAIL_PROVIDERS)[number];
+
+export interface AuthConfig {
+  sessionIdleMs: number;
+  sessionAbsoluteMs: number;
+  /** `__Host-` prefix in production: the browser then refuses the cookie unless it is Secure,
+   *  has Path=/ and carries no Domain attribute. */
+  cookieName: string;
+  cookieSecure: boolean;
+  argon2: { memoryKib: number; timeCost: number; parallelism: number };
+  invitationTtlMs: number;
+  passwordResetTtlMs: number;
+  emailVerificationTtlMs: number;
+}
+
+export interface EmailConfig {
+  provider: EmailProviderName;
+  from: string;
+  smtp: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string | undefined;
+    password: string | undefined;
+  } | null;
+}
+
 export interface AppConfig {
   env: (typeof NODE_ENVS)[number];
   isProduction: boolean;
@@ -29,6 +57,12 @@ export interface AppConfig {
   cors: { allowedOrigins: string[] };
   docs: { enabled: boolean };
   database: DatabaseConfig;
+  /** Origin of the web application, used for links in emails. */
+  webAppUrl: string;
+  trustProxyHops: number;
+  auth: AuthConfig;
+  email: EmailConfig;
+  rateLimit: { enabled: boolean; scale: number };
 }
 
 /** Thrown when the environment is invalid. The message lists variable names, never values. */
@@ -89,6 +123,38 @@ export function loadConfig(source: NodeJS.ProcessEnv): AppConfig {
       connectionTimeoutMs: env.DATABASE_CONNECTION_TIMEOUT_MS,
       queryTimeoutMs: env.DATABASE_QUERY_TIMEOUT_MS,
     },
+    webAppUrl: (env.WEB_APP_URL ?? 'http://localhost:3000').replace(/\/+$/, ''),
+    trustProxyHops: env.TRUST_PROXY_HOPS,
+    auth: {
+      sessionIdleMs: env.SESSION_IDLE_TIMEOUT_MINUTES * 60_000,
+      sessionAbsoluteMs: env.SESSION_ABSOLUTE_TIMEOUT_HOURS * 3_600_000,
+      cookieName: isProduction ? '__Host-sp_session' : 'sp_session',
+      cookieSecure: isProduction,
+      argon2: {
+        memoryKib: env.ARGON2_MEMORY_KIB,
+        timeCost: env.ARGON2_TIME_COST,
+        parallelism: env.ARGON2_PARALLELISM,
+      },
+      invitationTtlMs: env.INVITATION_TTL_HOURS * 3_600_000,
+      passwordResetTtlMs: env.PASSWORD_RESET_TTL_MINUTES * 60_000,
+      emailVerificationTtlMs: env.EMAIL_VERIFICATION_TTL_HOURS * 3_600_000,
+    },
+    email: {
+      // Production never sends mail unless a provider was chosen on purpose.
+      provider: env.EMAIL_PROVIDER ?? (isProduction ? 'none' : 'dev-capture'),
+      from: env.EMAIL_FROM ?? 'SmartPack <no-reply@smartpack.invalid>',
+      smtp:
+        env.EMAIL_PROVIDER === 'smtp' && env.SMTP_HOST !== undefined && env.SMTP_PORT !== undefined
+          ? {
+              host: env.SMTP_HOST,
+              port: env.SMTP_PORT,
+              secure: env.SMTP_SECURE ?? env.SMTP_PORT === 465,
+              user: env.SMTP_USER,
+              password: env.SMTP_PASSWORD,
+            }
+          : null,
+    },
+    rateLimit: { enabled: env.RATE_LIMIT_DISABLED !== true, scale: env.RATE_LIMIT_SCALE },
   };
   return Object.freeze(config);
 }

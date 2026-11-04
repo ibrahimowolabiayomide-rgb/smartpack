@@ -33,6 +33,11 @@ export interface ApiGetOptions {
    * and not a transport failure.
    */
   acceptStatuses?: readonly number[];
+  /**
+   * Extra request headers, used to forward the signed-in person's session cookie when a server
+   * component reads private data on their behalf.
+   */
+  headers?: Record<string, string>;
   /** Injection point for unit tests. */
   fetchImpl?: typeof fetch;
 }
@@ -65,6 +70,7 @@ export async function apiGet<S extends z.ZodType>(
     env = process.env,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     acceptStatuses = [200],
+    headers: extraHeaders = {},
     fetchImpl = fetch,
   } = options;
 
@@ -76,7 +82,7 @@ export async function apiGet<S extends z.ZodType>(
   try {
     response = await fetchImpl(`${base.url}${path}`, {
       cache: 'no-store',
-      headers: { accept: 'application/json', [REQUEST_ID_HEADER]: sentRequestId },
+      headers: { ...extraHeaders, accept: 'application/json', [REQUEST_ID_HEADER]: sentRequestId },
       signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {

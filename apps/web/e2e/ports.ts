@@ -10,6 +10,8 @@ export const PORTS = {
   webDbDown: 3103,
   /** Web server with company branding configured. */
   webBranded: 3104,
+  /** Web server whose BRAND_* values are all invalid, so the warnings can be checked. */
+  webBrandInvalid: 3105,
   apiDbDown: 4101,
   /** Nothing listens here. */
   closed: 4199,

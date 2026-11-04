@@ -3,11 +3,13 @@ import { ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagg
 import { healthResponseSchema, type HealthReport } from '@smartpack/shared';
 import type { FastifyReply } from 'fastify';
 import { HealthService } from './health.service.js';
+import { Public } from '../auth/decorators.js';
 import { toOpenApiSchema } from './openapi.js';
 
 const healthSchema = toOpenApiSchema(healthResponseSchema);
 
 @ApiTags('Health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(private readonly health: HealthService) {}

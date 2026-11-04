@@ -4,15 +4,14 @@ All in `apps/web/src`. Each has tests in the file shown or beside it.
 
 ## Shell (`components/shell`)
 
-| Component       | Purpose                                                                  |
-| --------------- | ------------------------------------------------------------------------ |
-| `AppShell`      | Rail, top bar, preview banner, content column, toast provider            |
-| `Sidebar`       | Brand mark and the Main and Secondary navigation (from `lg`)             |
-| `NavList`       | Two `nav` landmarks of real links; `aria-current`; "Planned" tags        |
-| `MobileNav`     | Menu button and navigation drawer below `lg`; closes on navigation       |
-| `TopBar`        | Menu button, wordmark, Help menu                                         |
-| `HelpMenu`      | Help & Documentation, Diagnostics, Privacy, Terms                        |
-| `PreviewBanner` | States that sign-in is not enabled and the area contains no company data |
+| Component   | Purpose                                                            |
+| ----------- | ------------------------------------------------------------------ |
+| `AppShell`  | Rail, top bar, content column, toast provider                      |
+| `Sidebar`   | Brand mark and the Main and Secondary navigation (from `lg`)       |
+| `NavList`   | Two `nav` landmarks of real links; `aria-current`; "Planned" tags  |
+| `MobileNav` | Menu button and navigation drawer below `lg`; closes on navigation |
+| `TopBar`    | Menu button, wordmark, Help menu                                   |
+| `HelpMenu`  | Help & Documentation, Diagnostics, Privacy, Terms                  |
 
 ## Interface (`components/ui`)
 

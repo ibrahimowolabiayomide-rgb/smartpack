@@ -147,11 +147,9 @@ export const NAV_MODULES: readonly NavModule[] = [
     label: 'Settings',
     description: 'Company, users, roles and platform administration.',
     icon: SettingsIcon,
-    status: 'planned',
+    status: 'available',
     group: 'secondary',
     href: '/dashboard/settings',
-    phase: 3,
-    requires: 'Authentication, user accounts and role permissions',
   },
   {
     id: 'help',

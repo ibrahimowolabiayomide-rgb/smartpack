@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description:
     'Company platform for registering, identifying, verifying and tracking SmartPack backpacks.',
   applicationName: PRODUCT_NAME,
-  // This is a development preview with no authentication. It must not be indexed.
+  // Private company software behind sign-in: it must not be indexed.
   robots: { index: false, follow: false },
 };
 

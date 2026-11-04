@@ -136,4 +136,59 @@ describe('errorCodeForStatus', () => {
   ])('maps %i to %s', (status, code) => {
     expect(errorCodeForStatus(status)).toBe(code);
   });
+
+  describe('database outages', () => {
+    const wrapped = (cause: Error) => Object.assign(new Error('Failed query: select 1'), { cause });
+
+    it.each([
+      [
+        'connection refused',
+        Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:5432'), { code: 'ECONNREFUSED' }),
+      ],
+      [
+        'administrator shutdown',
+        Object.assign(new Error('terminating connection due to administrator command'), {
+          code: '57P01',
+        }),
+      ],
+      [
+        'too many connections',
+        Object.assign(new Error('sorry, too many clients already'), { code: '53300' }),
+      ],
+      [
+        'connection exception class',
+        Object.assign(new Error('connection failure'), { code: '08006' }),
+      ],
+      ['pool connect timeout', new Error('timeout exceeded when trying to connect')],
+    ])('answers 503 SERVICE_UNAVAILABLE for %s, through the query wrapper', (_name, cause) => {
+      const body = mapException(wrapped(cause), prod);
+      expect(body.error).toMatchObject({ code: 'SERVICE_UNAVAILABLE', statusCode: 503 });
+      expect(body.error.message).toBe('The service is temporarily unavailable.');
+    });
+
+    it('does not leak the driver message, even outside production', () => {
+      const body = mapException(
+        wrapped(
+          Object.assign(new Error('connect ECONNREFUSED 10.0.0.5:5432'), { code: 'ECONNREFUSED' }),
+        ),
+        dev,
+      );
+      expect(JSON.stringify(body)).not.toContain('10.0.0.5');
+    });
+
+    it('still reports a query bug as 500 INTERNAL_ERROR', () => {
+      const bug = wrapped(
+        Object.assign(new Error('column "nope" does not exist'), { code: '42703' }),
+      );
+      expect(mapException(bug, prod).error).toMatchObject({
+        code: 'INTERNAL_ERROR',
+        statusCode: 500,
+      });
+    });
+
+    it('still reports a constraint violation as 500 INTERNAL_ERROR (services handle expected ones)', () => {
+      const dup = wrapped(Object.assign(new Error('duplicate key'), { code: '23505' }));
+      expect(mapException(dup, prod).error.statusCode).toBe(500);
+    });
+  });
 });

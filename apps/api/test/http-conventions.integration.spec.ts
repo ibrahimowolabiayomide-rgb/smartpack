@@ -4,6 +4,7 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { apiErrorSchema } from '@smartpack/shared';
 import request from 'supertest';
 import { z } from 'zod';
+import { Public } from '../src/auth/decorators.js';
 import { createTestApp, migrateTestDatabase, testConfig } from './helpers.js';
 
 const pageQuery = z.object({ limit: z.coerce.number().int().min(1).max(100).default(20) });
@@ -18,6 +19,8 @@ const openApiDocument = z.object({
 });
 
 /** Exists only in tests: proves the global pipe, envelope and error handling on a real route. */
+// Reachable without a session on purpose: these tests are about HTTP conventions, not sign-in.
+@Public()
 @Controller('test-conventions')
 class ConventionsTestController {
   @Get('page')
@@ -211,6 +214,7 @@ describe('HTTP conventions (production configuration)', () => {
       testConfig({
         NODE_ENV: 'production',
         CORS_ALLOWED_ORIGINS: 'https://app.example.com',
+        WEB_APP_URL: 'https://app.example.com',
         DATABASE_SSL: 'disable',
       }),
       [ConventionsTestController],

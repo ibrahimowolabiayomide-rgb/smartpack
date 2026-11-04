@@ -55,13 +55,10 @@ export default function LandingPage() {
           <ButtonLink href="/login" variant="primary">
             Sign in
           </ButtonLink>
-          <ButtonLink href="/dashboard" variant="secondary">
-            Open the application preview
-          </ButtonLink>
         </div>
         <p className="max-w-xl text-meta text-ink-subtle">
-          Sign-in and the business modules are not available in this build, and the preview contains
-          no company data.
+          Access is by invitation from a company administrator. The business modules (SmartPacks,
+          custody, tracking and the rest) are built in later phases and are marked as planned.
         </p>
       </section>
 

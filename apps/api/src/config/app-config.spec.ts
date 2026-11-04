@@ -35,7 +35,11 @@ describe('loadConfig defaults', () => {
   it('is silent in test and quieter in production', () => {
     expect(load({ NODE_ENV: 'test' }).logLevel).toBe('silent');
     expect(
-      load({ NODE_ENV: 'production', CORS_ALLOWED_ORIGINS: 'https://app.example.com' }).logLevel,
+      load({
+        NODE_ENV: 'production',
+        CORS_ALLOWED_ORIGINS: 'https://app.example.com',
+        WEB_APP_URL: 'https://app.example.com',
+      }).logLevel,
     ).toBe('info');
   });
 
@@ -51,7 +55,11 @@ describe('loadConfig defaults', () => {
 });
 
 describe('loadConfig production rules', () => {
-  const prod = { NODE_ENV: 'production', CORS_ALLOWED_ORIGINS: 'https://app.example.com' };
+  const prod = {
+    NODE_ENV: 'production',
+    CORS_ALLOWED_ORIGINS: 'https://app.example.com',
+    WEB_APP_URL: 'https://app.example.com',
+  };
 
   it('binds all interfaces, requires TLS to the database and hides the docs by default', () => {
     const config = load(prod);
@@ -150,5 +158,104 @@ describe('parseOriginList', () => {
     const { origins, problems } = parseOriginList(input);
     expect(origins).toEqual([]);
     expect(problems.join()).toContain(expected);
+  });
+});
+
+describe('loadConfig authentication and email settings', () => {
+  const prod = {
+    NODE_ENV: 'production',
+    CORS_ALLOWED_ORIGINS: 'https://app.example.com',
+    WEB_APP_URL: 'https://app.example.com',
+  };
+
+  it('uses documented development defaults', () => {
+    const config = load({});
+    expect(config.webAppUrl).toBe('http://localhost:3000');
+    expect(config.auth.sessionIdleMs).toBe(8 * 3_600_000);
+    expect(config.auth.sessionAbsoluteMs).toBe(7 * 24 * 3_600_000);
+    expect(config.auth.cookieName).toBe('sp_session');
+    expect(config.auth.cookieSecure).toBe(false);
+    expect(config.auth.argon2).toEqual({ memoryKib: 19_456, timeCost: 2, parallelism: 1 });
+    expect(config.email.provider).toBe('dev-capture');
+    expect(config.rateLimit).toEqual({ enabled: true, scale: 1 });
+  });
+
+  it('uses a __Host- secure cookie and no email provider in production by default', () => {
+    const config = load(prod);
+    expect(config.auth.cookieName).toBe('__Host-sp_session');
+    expect(config.auth.cookieSecure).toBe(true);
+    expect(config.email.provider).toBe('none');
+  });
+
+  it('requires WEB_APP_URL over https in production', () => {
+    const { WEB_APP_URL: _omit, ...withoutUrl } = prod;
+    expect(failureMessage({ DATABASE_URL: DB, ...withoutUrl })).toContain(
+      'WEB_APP_URL: is required in production',
+    );
+    expect(
+      failureMessage({ DATABASE_URL: DB, ...prod, WEB_APP_URL: 'http://app.example.com' }),
+    ).toContain('WEB_APP_URL: must use https in production');
+  });
+
+  it('rejects a web app URL that carries a path', () => {
+    expect(
+      failureMessage({ DATABASE_URL: DB, WEB_APP_URL: 'http://localhost:3000/app' }),
+    ).toContain('bare origin');
+  });
+
+  it('forbids the development mail capture and disabled rate limits in production', () => {
+    expect(failureMessage({ DATABASE_URL: DB, ...prod, EMAIL_PROVIDER: 'dev-capture' })).toContain(
+      'not allowed in production',
+    );
+    expect(failureMessage({ DATABASE_URL: DB, ...prod, RATE_LIMIT_DISABLED: 'true' })).toContain(
+      'RATE_LIMIT_DISABLED: must not be set in production',
+    );
+  });
+
+  it('requires production password hashing to meet the minimum profile', () => {
+    expect(failureMessage({ DATABASE_URL: DB, ...prod, ARGON2_MEMORY_KIB: '4096' })).toContain(
+      'at least 19456 KiB',
+    );
+    expect(
+      load({ ...prod, ARGON2_MEMORY_KIB: '47104', ARGON2_TIME_COST: '3' }).auth.argon2.memoryKib,
+    ).toBe(47_104);
+    // Cheaper hashing is allowed outside production so tests stay fast.
+    expect(load({ ARGON2_MEMORY_KIB: '4096', ARGON2_TIME_COST: '1' }).auth.argon2.timeCost).toBe(1);
+  });
+
+  it('needs a complete SMTP configuration when SMTP is chosen', () => {
+    const message = failureMessage({ DATABASE_URL: DB, EMAIL_PROVIDER: 'smtp' });
+    expect(message).toContain('SMTP_HOST: is required when EMAIL_PROVIDER=smtp');
+    expect(message).toContain('EMAIL_FROM: is required when EMAIL_PROVIDER=smtp');
+    expect(
+      failureMessage({
+        DATABASE_URL: DB,
+        EMAIL_PROVIDER: 'smtp',
+        SMTP_HOST: 'h',
+        SMTP_PORT: '587',
+        EMAIL_FROM: 'a@b.co',
+        SMTP_USER: 'u',
+      }),
+    ).toContain('must be set together');
+  });
+
+  it('never puts the SMTP password in an error message', () => {
+    const message = failureMessage({
+      DATABASE_URL: DB,
+      EMAIL_PROVIDER: 'smtp',
+      SMTP_PASSWORD: 'hunter2-secret',
+    });
+    expect(message).not.toContain('hunter2-secret');
+  });
+
+  it('infers SMTPS for port 465 unless told otherwise', () => {
+    const base = {
+      EMAIL_PROVIDER: 'smtp',
+      SMTP_HOST: 'mail.example.com',
+      EMAIL_FROM: 'SmartPack <a@b.co>',
+    };
+    expect(load({ ...base, SMTP_PORT: '465' }).email.smtp?.secure).toBe(true);
+    expect(load({ ...base, SMTP_PORT: '587' }).email.smtp?.secure).toBe(false);
+    expect(load({ ...base, SMTP_PORT: '587', SMTP_SECURE: 'true' }).email.smtp?.secure).toBe(true);
   });
 });

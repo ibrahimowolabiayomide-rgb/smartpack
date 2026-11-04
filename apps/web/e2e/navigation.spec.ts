@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { OWNER_STATE } from './accounts';
 import { APP_ROUTES, openNavigation, usesDrawer } from './helpers';
+
+// Every test here uses the signed-in Owner's saved session.
+test.use({ storageState: OWNER_STATE });
 
 test.describe('responsive navigation', () => {
   test('wide screens show the sidebar; narrow screens show a menu button instead', async ({

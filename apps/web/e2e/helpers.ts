@@ -22,7 +22,25 @@ export function usesDrawer(page: Page): boolean {
   return (page.viewportSize()?.width ?? 0) < 1024;
 }
 
-export const PUBLIC_ROUTES = ['/', '/login', '/privacy', '/terms'] as const;
+export const PUBLIC_ROUTES = [
+  '/',
+  '/login',
+  '/privacy',
+  '/terms',
+  '/forgot-password',
+  '/reset-password',
+  '/accept-invitation',
+  '/verify-email',
+] as const;
+
+/** Settings sections the Owner can open (each has its own page and heading). */
+export const SETTINGS_ROUTES = [
+  '/dashboard/settings',
+  '/dashboard/settings/members',
+  '/dashboard/settings/roles',
+  '/dashboard/settings/audit',
+  '/dashboard/settings/security',
+] as const;
 
 /** Every signed-in route, with the heading it must show and whether its module is planned. */
 export const APP_ROUTES: ReadonlyArray<{
@@ -60,7 +78,7 @@ export const APP_ROUTES: ReadonlyArray<{
     planned: true,
   },
   { path: '/dashboard/reports', heading: 'Reports', navLabel: 'Reports', planned: true },
-  { path: '/dashboard/settings', heading: 'Settings', navLabel: 'Settings', planned: true },
+  { path: '/dashboard/settings', heading: 'Settings', navLabel: 'Settings', planned: false },
   {
     path: '/dashboard/help',
     heading: 'Help & Documentation',

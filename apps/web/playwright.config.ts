@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
-import { PORTS } from './e2e/ports';
+import { ORG_NAME, OWNER_EMAIL, PASSWORD } from './e2e/accounts';
+import { PORTS, baseUrlFor } from './e2e/ports';
 
 // Load the API's local test settings (TEST_DATABASE_URL) so `pnpm test:e2e` works without exporting
 // anything by hand. Variables already set in the environment (for example in CI) take precedence.
@@ -44,9 +45,17 @@ const phone = devices['Pixel 7'];
  */
 export default defineConfig({
   testDir: './e2e',
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // Generous time budgets. The suite runs real journeys (sign-in, invitations, password changes)
+  // against production builds, and a slow or busy machine can take two to three times longer than
+  // the machine it was written on; with the defaults (30 s a test, 5 s an assertion) the longest
+  // journey and the first sign-ins timed out on such a machine although nothing was wrong. These
+  // limits only decide how long to wait: every assertion is unchanged.
+  timeout: 60_000,
+  expect: { timeout: 15_000 },
   // Locally: one dot per test and a full report only for failures. Use `--reporter=list` to see every test.
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : [['dot']],
   use: { baseURL, trace: 'retain-on-failure', launchOptions },
@@ -79,19 +88,30 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'node --env-file-if-exists=.env.test.local dist/main.js',
+      // The real API on a database rebuilt from nothing (see e2e/serve-api.mjs), with the first
+      // company and Owner created by the real bootstrap command. Mail goes to the in-memory
+      // development mailbox, which is how the invitation and reset links are read.
+      command: 'node --env-file-if-exists=.env.test.local ../web/e2e/serve-api.mjs',
       cwd: '../api',
       url: `http://127.0.0.1:${API_PORT}/api/v1/health`,
       reuseExistingServer: false,
-      timeout: 60_000,
+      timeout: 90_000,
       env: {
         NODE_ENV: 'test',
         PORT: String(API_PORT),
         LOG_LEVEL: 'silent',
-        DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
-        DATABASE_SSL: 'disable',
-        CORS_ALLOWED_ORIGINS: baseURL,
+        TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? '',
+        CORS_ALLOWED_ORIGINS: `${baseURL},${baseUrlFor(PORTS.webBranded)}`,
+        WEB_APP_URL: baseURL,
+        EMAIL_PROVIDER: 'dev-capture',
+        // Rate limits are verified by the API integration tests; every browser test here shares
+        // one client address, so leaving them on would make unrelated tests fail.
+        RATE_LIMIT_DISABLED: 'true',
+        E2E_ORG_NAME: ORG_NAME,
+        E2E_OWNER_EMAIL: OWNER_EMAIL,
+        E2E_OWNER_PASSWORD: PASSWORD,
       },
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 3000 },
     },
     {
       // A real API whose database is unreachable: it must answer 503 with a report.
@@ -120,6 +140,14 @@ export default defineConfig({
       BRAND_COMPANY_NAME: 'Example Manufacturing Ltd',
       BRAND_LOGO_URL: '/icons/icon-192.png',
       BRAND_ACCENT_COLOR: '#1d4f91',
+    }),
+    // Every value is invalid (an over-long name, a non-https logo, an accent that fails contrast),
+    // so Settings must name each variable in a warning and fall back to the defaults.
+    web(PORTS.webBrandInvalid, {
+      API_URL: `http://127.0.0.1:${API_PORT}/api/v1`,
+      BRAND_COMPANY_NAME: 'N'.repeat(120),
+      BRAND_LOGO_URL: 'http://insecure.example/logo.png',
+      BRAND_ACCENT_COLOR: '#f2e600',
     }),
   ],
 });

@@ -45,7 +45,7 @@ export async function createTestApp(
     imports: [AppModule.register(config)],
     controllers: extraControllers,
   }).compile();
-  const app = moduleRef.createNestApplication<NestFastifyApplication>(createFastifyAdapter());
+  const app = moduleRef.createNestApplication<NestFastifyApplication>(createFastifyAdapter(config));
   await configureApp(app, config);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();

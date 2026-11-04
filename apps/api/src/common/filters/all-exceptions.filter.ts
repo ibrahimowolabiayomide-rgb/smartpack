@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import type { AppConfig } from '../../config/app-config.js';
 import { APP_CONFIG } from '../../config/config.constants.js';
+import { RateLimitedException } from '../errors/domain.exception.js';
 import { mapException } from '../errors/map-exception.js';
 
 /**
@@ -33,6 +34,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       );
     }
 
+    if (exception instanceof RateLimitedException) {
+      void reply.header('retry-after', String(exception.retryAfterSeconds));
+    }
     void reply.status(body.error.statusCode).send(body);
   }
 }

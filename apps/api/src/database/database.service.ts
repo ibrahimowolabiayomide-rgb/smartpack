@@ -1,14 +1,15 @@
 import { Inject, Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import type pg from 'pg';
 import { APP_CONFIG } from '../config/config.constants.js';
 import type { AppConfig } from '../config/app-config.js';
 import { summariseDatabaseError } from './error-summary.js';
 import { createPool } from './pool.js';
 import * as schema from './schema/index.js';
+import type { Database, Transaction } from './db-types.js';
 
-export type Database = NodePgDatabase<typeof schema>;
+export type { Database, Transaction } from './db-types.js';
 
 export interface DatabaseProbe {
   status: 'up' | 'down';
@@ -51,6 +52,15 @@ export class DatabaseService implements OnApplicationShutdown {
       this.logger.error(`Idle database client error: ${summariseDatabaseError(error)}`);
     });
     this.db = drizzle(this.pool, { schema });
+  }
+
+  /**
+   * Runs `work` in one transaction: it commits if the callback resolves and rolls back if it
+   * throws. Keep callbacks short and free of network calls (email, HTTP) so connections are not
+   * held while waiting on something slow.
+   */
+  transaction<T>(work: (tx: Transaction) => Promise<T>): Promise<T> {
+    return this.db.transaction(work);
   }
 
   /**

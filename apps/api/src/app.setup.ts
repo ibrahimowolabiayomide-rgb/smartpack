@@ -1,13 +1,12 @@
 import type { IncomingMessage } from 'node:http';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import type { AppConfig } from './config/app-config.js';
 import { API_DOCS_PATH, API_PREFIX } from './config/app-info.js';
+import { BODY_LIMIT_BYTES, registerBodyLimitGuard } from './common/body-limit.js';
 import { REQUEST_ID_HEADER, resolveRequestId } from './common/request-id.js';
-
-/** 1 MiB. Photo upload endpoints, when they exist, will set their own explicit limit. */
-const BODY_LIMIT_BYTES = 1_048_576;
 
 /**
  * Swagger UI ships inline styles and scripts, so documentation routes need a looser policy
@@ -21,8 +20,17 @@ const DOCS_CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
 ].join('; ');
 
-export function createFastifyAdapter(): FastifyAdapter {
+/** Trusts the first `hops` proxies counted from the socket; none when `hops` is 0. */
+function trustFirstHops(hops: number): (address: string, hop: number) => boolean {
+  return (_address, hop) => hop < hops;
+}
+
+export function createFastifyAdapter(config?: AppConfig): FastifyAdapter {
   return new FastifyAdapter({
+    // Number of reverse-proxy hops whose X-Forwarded-For is trusted. 0 (default) means the socket
+    // address is the client; trusting more than the real number lets a caller spoof its IP and
+    // evade per-IP rate limits.
+    trustProxy: trustFirstHops(config?.trustProxyHops ?? 0),
     // Request logging is done by nestjs-pino; Fastify's own logger stays off.
     logger: false,
     bodyLimit: BODY_LIMIT_BYTES,
@@ -38,6 +46,10 @@ export function createFastifyAdapter(): FastifyAdapter {
  */
 export async function configureApp(app: NestFastifyApplication, config: AppConfig): Promise<void> {
   app.setGlobalPrefix(API_PREFIX);
+
+  // Parses the Cookie header (request.cookies) and provides reply.setCookie. Cookies are not
+  // signed: the session token is a random 256-bit value validated against the database.
+  await app.register(cookie);
 
   await app.register(helmet, {
     // This service returns JSON only: it never needs to load or embed anything.
@@ -57,12 +69,14 @@ export async function configureApp(app: NestFastifyApplication, config: AppConfi
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['content-type', 'authorization', REQUEST_ID_HEADER],
     exposedHeaders: [REQUEST_ID_HEADER],
-    // Credentialed (cookie) requests are decided together with authentication, not before.
+    // The browser reaches the API through the web app's same-origin proxy, so cookies never
+    // travel in cross-origin requests and credentialed CORS stays off.
     credentials: false,
     maxAge: 600,
   });
 
   const fastify = app.getHttpAdapter().getInstance();
+  registerBodyLimitGuard(fastify, config);
   fastify.addHook('onSend', (request, reply, payload, done) => {
     void reply.header(REQUEST_ID_HEADER, request.id);
     if (config.docs.enabled && request.url.startsWith(`/${API_DOCS_PATH}`)) {

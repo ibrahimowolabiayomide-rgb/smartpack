@@ -5,7 +5,15 @@ import type { PublicBrand } from '@/lib/brand/config';
 import { NavList } from './nav-list';
 
 /** Desktop navigation rail. Hidden below the `lg` breakpoint, where the drawer takes over. */
-export function Sidebar({ brand }: { brand: PublicBrand }) {
+export function Sidebar({
+  brand,
+  organizationName,
+  roleName,
+}: {
+  brand: PublicBrand;
+  organizationName: string;
+  roleName: string;
+}) {
   return (
     <aside className="on-dark hidden h-dvh w-64 shrink-0 flex-col border-r border-nav-line bg-nav text-nav-text lg:sticky lg:top-0 lg:flex">
       <div className="flex h-14 items-center border-b border-nav-line px-5">
@@ -17,8 +25,8 @@ export function Sidebar({ brand }: { brand: PublicBrand }) {
         <NavList />
       </div>
       <div className="border-t border-nav-line px-5 py-4 text-meta text-nav-dim">
-        {brand.companyName ? <p className="text-nav-muted">{brand.companyName}</p> : null}
-        <p>Development build</p>
+        <p className="text-nav-muted">{organizationName}</p>
+        <p>{roleName}</p>
         <p className="font-mono">v{APP_VERSION}</p>
       </div>
     </aside>

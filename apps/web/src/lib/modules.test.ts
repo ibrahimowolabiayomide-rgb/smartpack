@@ -61,10 +61,10 @@ describe('module registry', () => {
     }
   });
 
-  it('marks only Overview and Help as available in Phase 2', () => {
+  it('marks Overview, Settings and Help as available', () => {
     expect(
       NAV_MODULES.filter((entry) => entry.status === 'available').map((entry) => entry.id),
-    ).toEqual(['overview', 'help']);
+    ).toEqual(['overview', 'settings', 'help']);
   });
 
   it('describes every module', () => {

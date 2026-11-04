@@ -28,7 +28,7 @@ export function MobileNav({ logoSrc }: { logoSrc?: string | null }) {
         aria-label="Open navigation menu"
         aria-haspopup="dialog"
         onClick={() => setOpenedOn(pathname)}
-        className="-ml-2 inline-flex size-11 items-center justify-center rounded-md text-ink hover:bg-sunken active:bg-line lg:hidden"
+        className="-ml-2 inline-flex size-11 shrink-0 items-center justify-center rounded-md text-ink hover:bg-sunken active:bg-line lg:hidden"
       >
         <MenuIcon />
       </button>

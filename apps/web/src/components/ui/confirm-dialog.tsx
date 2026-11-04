@@ -2,6 +2,7 @@
 
 import { Button } from './button';
 import { Dialog } from './dialog';
+import { Notice } from './notice';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -14,6 +15,8 @@ export interface ConfirmDialogProps {
   onConfirm: () => void;
   /** Shows a busy state on the confirm button while the action runs. */
   pending?: boolean;
+  /** Why the action failed, shown inside the dialog so the person can retry or cancel. */
+  error?: string;
 }
 
 /**
@@ -29,6 +32,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   onConfirm,
   pending = false,
+  error,
 }: ConfirmDialogProps) {
   return (
     <Dialog
@@ -47,6 +51,14 @@ export function ConfirmDialog({
           </Button>
         </>
       }
-    />
+    >
+      {error ? (
+        <div role="alert">
+          <Notice tone="warning" title="Not completed">
+            {error}
+          </Notice>
+        </div>
+      ) : null}
+    </Dialog>
   );
 }

@@ -12,5 +12,12 @@ const ITEMS: readonly MenuItem[] = [
 
 /** Help and policy links in one menu, so the header stays light on narrow screens. */
 export function HelpMenu() {
-  return <DropdownMenu label="Help" icon={<HelpIcon width={18} height={18} />} items={ITEMS} />;
+  return (
+    <DropdownMenu
+      label="Help"
+      narrowLabel=""
+      icon={<HelpIcon width={18} height={18} />}
+      items={ITEMS}
+    />
+  );
 }

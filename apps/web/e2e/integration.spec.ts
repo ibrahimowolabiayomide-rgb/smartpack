@@ -1,8 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { OWNER_STATE, UNVERIFIED_SESSION } from './accounts';
 import { PORTS, baseUrlFor } from './ports';
 import { expectNoHorizontalOverflow, trackBrowserErrors } from './helpers';
 
 test.describe('overview with a live API and database', () => {
+  test.use({ storageState: OWNER_STATE });
+
   test('shows real service status from the API, labelled as system status', async ({ page }) => {
     const errors = trackBrowserErrors(page);
     await page.goto('/dashboard');
@@ -60,64 +63,86 @@ test.describe('overview with a live API and database', () => {
   });
 });
 
-test.describe('API unreachable', () => {
-  test.use({ baseURL: baseUrlFor(PORTS.webApiDown) });
+/**
+ * Private pages need the API to answer "who is this?". When it cannot, the application must say so
+ * and show no company pages. These browsers carry a session cookie the API has never issued, so
+ * the only thing that varies is why the API cannot answer.
+ */
+const UNAVAILABLE_TITLE = 'The SmartPack service is not reachable';
 
-  test('the overview explains the failure, not an empty success', async ({ page }) => {
+test.describe('API unreachable', () => {
+  test.use({ baseURL: baseUrlFor(PORTS.webApiDown), storageState: UNVERIFIED_SESSION });
+
+  test('private pages explain the failure and show no company content', async ({ page }) => {
     const errors = trackBrowserErrors(page);
     const response = await page.goto('/dashboard');
-    expect(response?.status()).toBe(200); // the page still renders; only the panel fails
-    const status = page.getByRole('region', { name: 'Service status' });
-    await expect(status.getByRole('alert')).toContainText('The API could not be reached');
-    await expect(status.getByText('All systems operational')).toHaveCount(0);
-    await expect(status.getByText(/Request ID/)).toBeVisible();
-    // The rest of the application keeps working.
-    await expect(
-      page
-        .getByRole('navigation', { name: 'Main' })
-        .or(page.getByRole('button', { name: 'Open navigation menu' })),
-    ).toBeVisible();
+    expect(response?.status()).toBe(200);
+    await expect(page.getByText(UNAVAILABLE_TITLE)).toBeVisible();
+    await expect(page.getByText('Your session could not be checked')).toBeVisible();
+    // Nothing private is shown and the person is not told they are signed out.
+    await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Service status' })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/dashboard$/);
     await expectNoHorizontalOverflow(page);
     expect(errors.filter((e) => !/Failed to load resource/.test(e))).toEqual([]);
   });
 
-  test('retrying while the API is still down stays honest', async ({ page }) => {
-    await page.goto('/dashboard');
-    await page.getByRole('button', { name: 'Check again' }).click();
-    await expect(page.getByRole('button', { name: 'Check again' })).toBeVisible();
-    await expect(
-      page.getByRole('region', { name: 'Service status' }).getByRole('alert'),
-    ).toContainText('The API could not be reached');
+  test('the sign-in page says the service is unreachable', async ({ page }) => {
+    await page.goto('/login');
+    await expect(page.getByText(UNAVAILABLE_TITLE)).toBeVisible();
   });
 
-  test('diagnostics say the API is unreachable', async ({ page }) => {
-    await page.goto('/dashboard/help');
-    await page.getByRole('button', { name: 'View diagnostic details' }).click();
-    await expect(page.getByRole('dialog')).toContainText('API: unreachable');
+  test('the sign-in gateway answers 502 with the standard error envelope', async ({ request }) => {
+    const response = await request.post('/api/v1/auth/login', {
+      data: { email: 'a@b.example', password: 'x' },
+      headers: { origin: baseUrlFor(PORTS.webApiDown) },
+    });
+    expect(response.status()).toBe(502);
+    const body = (await response.json()) as { error: { code: string; requestId: string } };
+    expect(body.error.code).toBeTruthy();
+    expect(body.error.requestId).toBeTruthy();
   });
 });
 
 test.describe('API address not configured', () => {
-  test.use({ baseURL: baseUrlFor(PORTS.webUnconfigured) });
+  test.use({ baseURL: baseUrlFor(PORTS.webUnconfigured), storageState: UNVERIFIED_SESSION });
 
-  test('the overview says the address is missing', async ({ page }) => {
+  test('private pages say the service is unavailable', async ({ page }) => {
     await page.goto('/dashboard');
-    const status = page.getByRole('region', { name: 'Service status' });
-    await expect(status.getByRole('alert')).toContainText('The API address is not configured');
-    await expect(status.getByText('API_URL is not set.')).toBeVisible();
+    await expect(page.getByText(UNAVAILABLE_TITLE)).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
   });
 });
 
 test.describe('API up, database down', () => {
-  test.use({ baseURL: baseUrlFor(PORTS.webDbDown) });
+  test.use({ baseURL: baseUrlFor(PORTS.webDbDown), storageState: UNVERIFIED_SESSION });
 
-  test('reports a database outage separately from API reachability', async ({ page }) => {
+  test('the API answers 503 for a signed-in request while the database is down', async ({
+    request,
+  }) => {
+    const response = await request.get(`${baseUrlFor(PORTS.apiDbDown)}/api/v1/auth/me`, {
+      headers: { cookie: `sp_session=${'x'.repeat(43)}` },
+    });
+    expect(response.status()).toBe(503);
+    const body = (await response.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('SERVICE_UNAVAILABLE');
+  });
+
+  test('the session cannot be checked, so no private page is shown', async ({ page }) => {
     await page.goto('/dashboard');
-    const status = page.getByRole('region', { name: 'Service status' });
-    await expect(status.getByText('Database unavailable')).toBeVisible();
-    await expect(status.getByText('Reachable')).toBeVisible(); // the API itself answered
-    await expect(status.getByText('Down')).toBeVisible(); // the database row
-    await expect(status.getByText('All systems operational')).toHaveCount(0);
-    await expect(status.getByRole('alert')).toHaveCount(0); // it is a report, not a transport failure
+    await expect(page.getByText(UNAVAILABLE_TITLE)).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Service status' })).toHaveCount(0);
+  });
+
+  test('the API itself reports the database outage with a 503 health report', async ({
+    request,
+  }) => {
+    const response = await request.get(`${baseUrlFor(PORTS.apiDbDown)}/api/v1/health`);
+    expect(response.status()).toBe(503);
+    const body = (await response.json()) as {
+      data: { status: string; checks: { database: { status: string } } };
+    };
+    expect(body.data.status).toBe('error');
+    expect(body.data.checks.database.status).toBe('down');
   });
 });

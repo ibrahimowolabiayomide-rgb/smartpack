@@ -1,33 +1,40 @@
 import type { Metadata } from 'next';
-import { ButtonLink } from '@/components/ui/button';
+import { redirect } from 'next/navigation';
 import { Notice } from '@/components/ui/notice';
-import { StatusBadge } from '@/components/ui/status-badge';
 import { LoginForm } from '@/features/auth/login-form';
+import { safeNextPath } from '@/lib/auth/next-path';
+import { getSession } from '@/lib/auth/server';
 
 export const metadata: Metadata = { title: 'Sign in' };
 
-export default function LoginPage() {
+type SearchParams = Promise<{ next?: string; reason?: string }>;
+
+export default async function LoginPage({ searchParams }: { searchParams: SearchParams }) {
+  const { next, reason } = await searchParams;
+  const session = await getSession();
+  if (session.status === 'authenticated') redirect(safeNextPath(next) as never);
+
   return (
     <div className="flex flex-1 items-start justify-center py-10 lg:py-20">
       <div className="flex w-full max-w-md flex-col gap-6">
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="font-serif text-title font-semibold tracking-tight">Sign in</h1>
-            <StatusBadge tone="neutral">Not enabled</StatusBadge>
-          </div>
+          <h1 className="font-serif text-title font-semibold tracking-tight">Sign in</h1>
           <p className="text-ui text-ink-muted">Company sign-in for administrators and workers.</p>
         </div>
-
-        <Notice tone="warning" title="Sign-in is not enabled in this build">
-          Accounts and authentication are built in Phase 3. You can try the form to see how input is
-          checked, but nothing you type is sent anywhere and no one is signed in.
-        </Notice>
-
-        <LoginForm />
-
-        <ButtonLink href="/dashboard" variant="secondary" className="self-start">
-          Open the application preview
-        </ButtonLink>
+        {session.status === 'unavailable' ? (
+          <Notice tone="warning" title="The SmartPack service is not reachable">
+            Sign-in needs the service. Check your connection and try again in a moment.
+          </Notice>
+        ) : null}
+        <LoginForm
+          next={next}
+          notice={
+            reason === 'expired' ? 'expired' : reason === 'signed-out' ? 'signed-out' : undefined
+          }
+        />
+        <p className="text-meta text-ink-muted">
+          There is no public sign-up. New people join by invitation from a company administrator.
+        </p>
       </div>
     </div>
   );

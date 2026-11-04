@@ -1,26 +1,14 @@
 import { describe, expect, it } from '@jest/globals';
 import { healthReportSchema } from '@smartpack/shared';
-import type { AppConfig } from '../config/app-config.js';
+import { loadConfig, type AppConfig } from '../config/app-config.js';
 import type { DatabaseProbe, DatabaseService } from '../database/database.service.js';
 import { HealthService, overallStatus } from './health.service.js';
 
-const config: AppConfig = {
-  env: 'test',
-  isProduction: false,
-  host: '127.0.0.1',
-  port: 4000,
-  logLevel: 'silent',
-  version: '1.2.3',
-  cors: { allowedOrigins: [] },
-  docs: { enabled: false },
-  database: {
-    url: 'postgresql://unused@localhost:5432/unused',
-    ssl: 'disable',
-    poolMax: 1,
-    connectionTimeoutMs: 1000,
-    queryTimeoutMs: 1000,
-  },
-};
+const config: AppConfig = loadConfig({
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgresql://unused@localhost:5432/unused',
+  DATABASE_POOL_MAX: '1',
+});
 
 function serviceWith(probe: DatabaseProbe): HealthService {
   const database = { probe: () => Promise.resolve(probe) } as unknown as DatabaseService;
@@ -49,7 +37,7 @@ describe('HealthService.check', () => {
     expect(report).toMatchObject({
       status: 'ok',
       service: 'smartpack-api',
-      version: '1.2.3',
+      version: config.version,
       environment: 'test',
       checks: { database: { status: 'up', latencyMs: 4 }, postgis: { status: 'enabled' } },
     });

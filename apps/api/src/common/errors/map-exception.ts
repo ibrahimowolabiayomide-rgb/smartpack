@@ -1,5 +1,7 @@
 import { HttpException } from '@nestjs/common';
 import type { ApiError, ApiErrorCode } from '@smartpack/shared';
+import { isDatabaseUnavailable } from '../../database/error-summary.js';
+import { DomainException } from './domain.exception.js';
 import { ValidationFailedException } from './validation-failed.exception.js';
 
 export interface MapContext {
@@ -65,6 +67,17 @@ export function mapException(exception: unknown, context: MapContext): ApiError 
     };
   }
 
+  if (exception instanceof DomainException) {
+    return {
+      error: {
+        code: exception.code,
+        message: exception.message,
+        statusCode: exception.getStatus(),
+        requestId,
+      },
+    };
+  }
+
   if (exception instanceof HttpException) {
     const statusCode = exception.getStatus();
     const code = errorCodeForStatus(statusCode);
@@ -88,6 +101,18 @@ export function mapException(exception: unknown, context: MapContext): ApiError 
         code: errorCodeForStatus(clientStatus),
         message: exception instanceof Error ? exception.message : 'Bad request.',
         statusCode: clientStatus,
+        requestId,
+      },
+    };
+  }
+
+  // The database being unreachable is temporary and retryable: say so (503), do not call it a bug.
+  if (isDatabaseUnavailable(exception)) {
+    return {
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: GENERIC_MESSAGE.SERVICE_UNAVAILABLE ?? 'The service is temporarily unavailable.',
+        statusCode: 503,
         requestId,
       },
     };

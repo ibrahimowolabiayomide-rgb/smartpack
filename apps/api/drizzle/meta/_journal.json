@@ -8,6 +8,20 @@
       "when": 1793313255339,
       "tag": "0000_enable_postgis",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793542621950,
+      "tag": "0001_auth_and_access_foundation",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793542638129,
+      "tag": "0002_seed_access_reference_data_and_audit_guards",
+      "breakpoints": true
     }
   ]
 }

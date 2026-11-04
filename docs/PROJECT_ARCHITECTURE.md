@@ -147,8 +147,10 @@ The full table, with the backend each page is waiting for, is in
   `/dashboard/{smartpacks,workers,verification,tracking,custody,inspections,alerts,reports,settings,help}`.
 - `not-found` for unknown paths; `manifest.webmanifest`, `robots.txt`, icons.
 
-**None of the `(app)` routes is protected**: authentication does not exist yet, and an amber banner
-on every page says so. A later phase adds the guard around the `(app)` layout.
+**Every `(app)` route is protected** (Phase 3). `proxy.ts` sends a request without a session cookie
+to `/login`, and the `(app)` layout checks the session with the API on every request, so a revoked or
+expired session is refused even though the cookie is still present. See
+[AUTHENTICATION.md](AUTHENTICATION.md).
 
 ### 5.2 Rendering model
 
@@ -286,7 +288,7 @@ The "database unreachable" and "PostGIS missing" health paths are exercised agai
 | Planned modules are pages, not inert labels          | Phase 2 needs every screen reviewable; honesty comes from labels, notices and disabled controls rather than from hiding the page                                                                                      |
 | Runtime branding from server environment variables   | A company name, logo and accent can change without a rebuild; invalid values are ignored with a note. Cost: all pages are rendered per request                                                                        |
 | Native `<dialog>` for dialogs and drawers            | One accessible primitive for modal behaviour instead of a library                                                                                                                                                     |
-| Sign-in validates but sends nothing                  | No fake authentication; the form shows how input is checked and states plainly that sign-in is not enabled                                                                                                            |
+| Sign-in is real (Phase 3)                            | The Phase 2 form validated and sent nothing; it now signs in through the same-origin gateway with an opaque server-side session ([AUTHENTICATION.md](AUTHENTICATION.md))                                              |
 | `@axe-core/playwright` (dev dependency)              | Automated WCAG 2.2 AA checks on every route                                                                                                                                                                           |
 | API dev uses `node --env-file-if-exists`             | Reads `.env` without an extra dependency                                                                                                                                                                              |
 

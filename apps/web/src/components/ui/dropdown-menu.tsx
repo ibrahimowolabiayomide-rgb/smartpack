@@ -17,11 +17,17 @@ export type MenuItem =
  */
 export function DropdownMenu({
   label,
+  narrowLabel,
   icon,
   items,
 }: {
   /** Visible, accessible name of the trigger. */
   label: string;
+  /**
+   * What the trigger shows instead of `label` on screens narrower than `sm` (an empty string
+   * shows nothing but the icon). The accessible name stays the full `label`.
+   */
+  narrowLabel?: string;
   icon?: ReactNode;
   items: readonly MenuItem[];
 }) {
@@ -89,7 +95,7 @@ export function DropdownMenu({
     'flex w-full items-center rounded-sm px-3 py-2 text-left text-ui text-ink hover:bg-sunken focus-visible:bg-sunken pointer-coarse:py-3';
 
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className="relative min-w-0">
       <button
         ref={triggerRef}
         type="button"
@@ -103,10 +109,17 @@ export function DropdownMenu({
             setOpen(true);
           }
         }}
-        className="inline-flex h-10 items-center gap-2 rounded-md border border-transparent px-3 text-ui font-medium text-ink hover:bg-sunken active:bg-line"
+        className="inline-flex h-10 max-w-full items-center gap-2 rounded-md border border-transparent px-3 text-ui font-medium text-ink hover:bg-sunken active:bg-line"
       >
         {icon}
-        {label}
+        <span className={cn('truncate sm:max-w-64', narrowLabel !== undefined && 'max-sm:sr-only')}>
+          {label}
+        </span>
+        {narrowLabel ? (
+          <span aria-hidden="true" className="sm:hidden">
+            {narrowLabel}
+          </span>
+        ) : null}
         <ChevronDownIcon
           width={16}
           height={16}

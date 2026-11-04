@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { OWNER_EMAIL, OWNER_STATE, PASSWORD, SIGNED_OUT } from './accounts';
+
+// Unless a block says otherwise, tests here use the signed-in Owner's saved session.
+test.use({ storageState: OWNER_STATE });
 
 test.describe('login form', () => {
+  test.use({ storageState: SIGNED_OUT });
+
   test('validates required fields with specific messages and focuses the first problem', async ({
     page,
   }) => {
@@ -34,41 +40,78 @@ test.describe('login form', () => {
     await expect(password).toHaveAttribute('type', 'password');
   });
 
-  test('valid input does not authenticate, send anything, or leave the password behind', async ({
+  test('a wrong password and an unknown address get the same message and no session', async ({
     page,
   }) => {
-    const requests: string[] = [];
+    const message = /The email address or password is not correct/;
     await page.goto('/login');
-    page.on('request', (request) => {
-      if (request.method() !== 'GET' || request.url().includes('login'))
-        requests.push(request.url());
-    });
-    await page.getByLabel('Email address').fill('name@company.com');
-    await page.getByLabel('Password', { exact: true }).fill('a-password');
+    const submit = page.getByRole('button', { name: 'Sign in', exact: true });
+    await expect(submit).toBeEnabled();
+
+    await page.getByLabel('Email address').fill(OWNER_EMAIL);
+    await page.getByLabel('Password', { exact: true }).fill('definitely-not-the-password');
+    await submit.click();
+    await expect(page.getByRole('alert').filter({ hasText: message })).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
+    await expect(page.getByLabel('Password', { exact: true })).toBeFocused();
+
+    await page.getByLabel('Email address').fill('nobody@e2e.example');
+    await page.getByLabel('Password', { exact: true }).fill('definitely-not-the-password');
+    await submit.click();
+    await expect(page.getByRole('alert').filter({ hasText: message })).toBeVisible();
+
+    await expect(page).toHaveURL(/\/login$/);
+    expect(page.url()).not.toContain('password');
+    expect(await page.context().cookies()).toEqual([]);
+  });
+
+  test('a correct password signs in, and the browser never holds the password or the token', async ({
+    page,
+  }) => {
+    await page.goto('/login');
+    await page.getByLabel('Email address').fill(OWNER_EMAIL);
+    await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
-    await expect(page.getByRole('status')).toContainText('Sign-in is not enabled yet');
-    await expect(page.getByLabel('Password', { exact: true })).toHaveValue('');
-    expect(page.url()).not.toContain('password');
-    expect(page.url()).not.toContain('a-password');
-    expect(requests).toEqual([]);
-    await expect(page).toHaveURL(/\/login$/);
-    // Nothing was stored in the browser.
-    const stored = await page.evaluate(() =>
-      JSON.stringify({ ...localStorage, ...sessionStorage }),
-    );
-    expect(stored).not.toContain('a-password');
-    expect(await page.context().cookies()).toEqual([]);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible();
+    expect(page.url()).not.toContain(PASSWORD);
+
+    const cookies = await page.context().cookies();
+    const session = cookies.find((cookie) => cookie.name === 'sp_session');
+    expect(session, 'session cookie').toBeDefined();
+    expect(session?.httpOnly).toBe(true);
+    expect(session?.sameSite).toBe('Lax');
+    // Script cannot read the session, and nothing sensitive was stored by the page.
+    const visible = await page.evaluate(() => ({
+      cookie: document.cookie,
+      stored: JSON.stringify({ ...localStorage, ...sessionStorage }),
+    }));
+    expect(visible.cookie).not.toContain('sp_session');
+    expect(visible.stored).not.toContain(PASSWORD);
+    expect(visible.stored).not.toContain(session?.value ?? 'x');
   });
 
   test('the form can be completed with the keyboard alone', async ({ page }) => {
     await page.goto('/login');
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
     await page.getByLabel('Email address').focus();
-    await page.keyboard.type('name@company.com');
+    await page.keyboard.type(OWNER_EMAIL);
     await page.keyboard.press('Tab');
-    await page.keyboard.type('a-password');
+    await page.keyboard.type(PASSWORD);
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('status')).toContainText('Sign-in is not enabled yet');
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
+
+  test('a signed-in person who opens the sign-in page is sent to the application', async ({
+    browser,
+    baseURL,
+  }) => {
+    const context = await browser.newContext({ baseURL, storageState: OWNER_STATE });
+    const page = await context.newPage();
+    await page.goto('/login');
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await context.close();
   });
 });
 
@@ -197,19 +240,29 @@ test.describe('components in a real browser', () => {
     await expect(page.getByLabel('From')).toBeDisabled();
   });
 
-  test('settings: section links jump within the page and the profile is read-only', async ({
+  test('settings: sections are tabs of one area and later sections are marked unavailable', async ({
     page,
   }) => {
     await page.goto('/dashboard/settings');
-    await page
-      .getByRole('navigation', { name: 'Settings sections' })
-      .getByRole('link', { name: 'Data management' })
-      .click();
-    await expect(page).toHaveURL(/#data-management$/);
-    await expect(page.getByRole('heading', { name: 'Data management' })).toBeInViewport();
-    await expect(page.getByText('Company name', { exact: true })).toBeVisible();
-    await expect(page.getByText('Not configured').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: /save/i })).toHaveCount(0);
+    const sections = page.getByRole('navigation', { name: 'Settings sections' });
+    await expect(sections.getByRole('link', { name: 'Company' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await sections.getByRole('link', { name: 'Members' }).click();
+    await expect(page).toHaveURL(/\/dashboard\/settings\/members$/);
+    await expect(sections.getByRole('link', { name: 'Members' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await page.goto('/dashboard/settings');
+    for (const title of [
+      'Notification preferences',
+      'Integration configuration',
+      'Data management',
+    ]) {
+      await expect(page.getByRole('region', { name: title })).toContainText('Planned for Phase');
+    }
   });
 });
 
@@ -226,7 +279,12 @@ test.describe('accessibility behaviour', () => {
     await expect(page.locator('#main-content')).toBeFocused();
   });
 
-  test('keyboard focus is visibly indicated on interactive controls', async ({ page }) => {
+  test('keyboard focus is visibly indicated on interactive controls', async ({
+    browser,
+    baseURL,
+  }) => {
+    const context = await browser.newContext({ baseURL, storageState: SIGNED_OUT });
+    const page = await context.newPage();
     await page.goto('/login');
     await page.getByLabel('Email address').focus();
     await page.keyboard.press('Tab');
@@ -236,6 +294,7 @@ test.describe('accessibility behaviour', () => {
     });
     expect(outline.style).toBe('solid');
     expect(parseFloat(outline.width)).toBeGreaterThanOrEqual(2);
+    await context.close();
   });
 
   test('reduced motion is respected', async ({ page }) => {
@@ -247,6 +306,8 @@ test.describe('accessibility behaviour', () => {
 });
 
 test.describe('platform basics', () => {
+  test.use({ storageState: SIGNED_OUT });
+
   test('serves a valid web app manifest', async ({ request }) => {
     const response = await request.get('/manifest.webmanifest');
     expect(response.ok()).toBe(true);
@@ -279,7 +340,9 @@ test.describe('platform basics', () => {
     expect(headers['x-powered-by']).toBeUndefined();
   });
 
-  test('the API address never reaches the browser', async ({ page }) => {
+  test('the API address never reaches the browser', async ({ browser, baseURL }) => {
+    const context = await browser.newContext({ baseURL, storageState: OWNER_STATE });
+    const page = await context.newPage();
     const bodies: string[] = [];
     page.on('response', async (response) => {
       const type = response.headers()['content-type'] ?? '';
@@ -291,6 +354,7 @@ test.describe('platform basics', () => {
       expect(body).not.toContain('127.0.0.1:4100');
       expect(body).not.toContain('API_URL');
     }
+    await context.close();
   });
 
   test('the viewport allows pinch zoom and covers the safe area', async ({ page }) => {
