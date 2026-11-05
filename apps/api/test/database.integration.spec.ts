@@ -181,7 +181,6 @@ describe('clean database: migrations and bootstrap', () => {
     const config = loadDatabaseConfig({
       DATABASE_URL: urlWithDatabase(name),
       DATABASE_SSL: 'disable',
-      DATABASE_QUERY_TIMEOUT_MS: '120000',
     });
     await runMigrations(config);
     pool = new pg.Pool({ connectionString: urlWithDatabase(name) });
@@ -320,7 +319,7 @@ describe('clean database: migrations and bootstrap', () => {
 describe('slugFromName', () => {
   it.each([
     ['Northwind Haulage', 'northwind-haulage'],
-    ['  Zo\u00EB & Sons, Ltd. ', 'zoe-sons-ltd'],
+    ['  Zoë & Sons, Ltd. ', 'zoe-sons-ltd'],
     ['A'.repeat(80), 'a'.repeat(48)],
   ])('%s -> %s', (input, expected) => {
     expect(slugFromName(input)).toBe(expected);

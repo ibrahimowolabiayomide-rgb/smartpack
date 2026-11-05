@@ -9,11 +9,12 @@ import { renderEmail, type EmailTemplate } from './templates.js';
 const MAX_ERROR_LENGTH = 300;
 
 /** Keeps a provider failure short and free of anything that looks like a credential. */
-function describeFailure(error: unknown): string {
+export function describeFailure(error: unknown): string {
   const raw = error instanceof Error ? error.message : 'unknown error';
   const firstLine = raw.split('\n')[0] ?? 'unknown error';
   return firstLine
-    .replace(/(pass(word)?|pwd|auth)[=:]\s*\S+/gi, '$1=[redacted]')
+    .replace(/(pass(word)?|pwd|auth|api-?key)[=:]\s*\S+/gi, '$1=[redacted]')
+    .replace(/xkeysib-[\w-]+/gi, '[redacted]')
     .slice(0, MAX_ERROR_LENGTH);
 }
 

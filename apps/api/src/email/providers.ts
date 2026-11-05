@@ -92,3 +92,107 @@ export class SmtpEmailProvider implements EmailProvider {
     return { providerMessageId: info.messageId };
   }
 }
+
+const BREVO_TIMEOUT_MS = 10_000;
+const BREVO_MAX_DETAIL_LENGTH = 200;
+
+/** A failure reported by, or on the way to, Brevo. The message never contains the API key. */
+export class BrevoDeliveryError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null,
+  ) {
+    super(message);
+    this.name = 'BrevoDeliveryError';
+  }
+}
+
+type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
+
+/**
+ * Delivers through Brevo's transactional HTTP API (`POST /v3/smtp/email`). Resolves only when Brevo
+ * answers 2xx, which means Brevo accepted the message for delivery; any other outcome rejects with
+ * a short, credential-free reason. There are no retries: a retry after a timeout could send the
+ * same message twice, and the caller already reports `failed` truthfully.
+ */
+export class BrevoEmailProvider implements EmailProvider {
+  readonly name = 'brevo';
+
+  constructor(
+    private readonly settings: {
+      apiKey: string;
+      baseUrl: string;
+      sender: { name: string; email: string };
+    },
+    private readonly fetchImpl: FetchLike = (url, init) => fetch(url, init),
+  ) {}
+
+  async send(message: EmailMessage): Promise<EmailSendResult> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.settings.baseUrl}/v3/smtp/email`, {
+        method: 'POST',
+        headers: {
+          'api-key': this.settings.apiKey,
+          'content-type': 'application/json',
+          accept: 'application/json',
+        },
+        body: JSON.stringify({
+          sender: { name: this.settings.sender.name, email: this.settings.sender.email },
+          to: [{ email: message.to }],
+          subject: message.subject,
+          htmlContent: message.html,
+          textContent: message.text,
+        }),
+        // The API key must never follow a redirect to another host.
+        redirect: 'error',
+        signal: AbortSignal.timeout(BREVO_TIMEOUT_MS),
+      });
+    } catch (error) {
+      const timedOut = error instanceof Error && error.name === 'TimeoutError';
+      throw new BrevoDeliveryError(
+        timedOut ? 'Brevo did not answer in time.' : 'Brevo could not be reached.',
+        null,
+      );
+    }
+
+    const body = await this.readBody(response);
+    if (!response.ok) {
+      throw new BrevoDeliveryError(this.describeRejection(response.status, body), response.status);
+    }
+    const messageId = typeof body?.messageId === 'string' ? body.messageId : undefined;
+    return { providerMessageId: messageId };
+  }
+
+  private async readBody(response: Response): Promise<Record<string, unknown> | null> {
+    try {
+      const parsed: unknown = JSON.parse(await response.text());
+      return typeof parsed === 'object' && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private describeRejection(status: number, body: Record<string, unknown> | null): string {
+    const hint =
+      status === 401
+        ? ' The API key was rejected; check BREVO_API_KEY.'
+        : status === 403
+          ? ' The key may lack permission, or the request came from an IP address that is not authorised in Brevo.'
+          : status === 429
+            ? ' Brevo is rate limiting this account.'
+            : '';
+    const detail =
+      typeof body?.message === 'string'
+        ? ` ${this.scrub(body.message).replace(/\s+/g, ' ').slice(0, BREVO_MAX_DETAIL_LENGTH)}`
+        : '';
+    return `Brevo refused the message (HTTP ${status}).${hint}${detail}`;
+  }
+
+  /** Brevo should never echo the key, but nothing derived from a response is trusted. */
+  private scrub(text: string): string {
+    return text.split(this.settings.apiKey).join('[redacted]');
+  }
+}

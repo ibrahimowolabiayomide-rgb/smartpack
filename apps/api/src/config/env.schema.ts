@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const NODE_ENVS = ['development', 'test', 'production'] as const;
 export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
 export const DATABASE_SSL_MODES = ['disable', 'require', 'no-verify'] as const;
-export const EMAIL_PROVIDERS = ['none', 'dev-capture', 'smtp'] as const;
+export const EMAIL_PROVIDERS = ['none', 'dev-capture', 'smtp', 'brevo'] as const;
 
 /**
  * Returns a human-readable problem, or `undefined` when the value is acceptable.
@@ -105,6 +105,20 @@ export const baseEnvSchema = z.object({
 
   EMAIL_PROVIDER: z.enum(EMAIL_PROVIDERS).optional(),
   EMAIL_FROM: z.string().min(3).max(200).optional(),
+  /** Sender shown to recipients. Used by the Brevo provider; change it here, not in code. */
+  EMAIL_SENDER_NAME: z
+    .string()
+    .min(1)
+    .max(100)
+    .refine((value) => !/[<>"\r\n]/.test(value), {
+      message: 'must not contain angle brackets, quotes or line breaks',
+    })
+    .optional(),
+  EMAIL_SENDER_EMAIL: z.email().max(200).optional(),
+  /** Secret. Create it in Brevo under SMTP & API > API keys. Never logged. */
+  BREVO_API_KEY: z.string().min(20).max(500).optional(),
+  /** Test-only override of the Brevo API origin; refused in production. */
+  BREVO_API_BASE_URL: httpUrl.optional(),
   SMTP_HOST: z.string().min(1).optional(),
   SMTP_PORT: portNumber.optional(),
   SMTP_SECURE: booleanFlag.optional(),
@@ -152,6 +166,24 @@ export const envSchema = baseEnvSchema.superRefine((env, ctx) => {
         message: 'SMTP_USER and SMTP_PASSWORD must be set together',
       });
     }
+  }
+  if (env.EMAIL_PROVIDER === 'brevo') {
+    for (const name of ['BREVO_API_KEY', 'EMAIL_SENDER_EMAIL'] as const) {
+      if (env[name] === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [name],
+          message: 'is required when EMAIL_PROVIDER=brevo',
+        });
+      }
+    }
+  }
+  if (env.BREVO_API_BASE_URL !== undefined && env.NODE_ENV === 'production') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['BREVO_API_BASE_URL'],
+      message: 'must not be set in production; the API key would be sent to that address',
+    });
   }
   if (env.EMAIL_PROVIDER === 'dev-capture' && env.NODE_ENV === 'production') {
     ctx.addIssue({

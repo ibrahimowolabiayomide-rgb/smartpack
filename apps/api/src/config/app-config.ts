@@ -37,7 +37,12 @@ export interface AuthConfig {
 
 export interface EmailConfig {
   provider: EmailProviderName;
+  /** Display form `Name <address>` used by the SMTP and dev-capture providers. */
   from: string;
+  /** Structured sender used by the Brevo provider. */
+  sender: { name: string; email: string | undefined };
+  /** `baseUrl` is an origin; the provider appends the versioned path. */
+  brevo: { apiKey: string; baseUrl: string } | null;
   smtp: {
     host: string;
     port: number;
@@ -72,6 +77,9 @@ export class ConfigError extends Error {
     this.name = 'ConfigError';
   }
 }
+
+const DEFAULT_SENDER_NAME = 'SmartPack';
+const DEFAULT_BREVO_ORIGIN = 'https://api.brevo.com';
 
 const DEV_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
@@ -142,7 +150,19 @@ export function loadConfig(source: NodeJS.ProcessEnv): AppConfig {
     email: {
       // Production never sends mail unless a provider was chosen on purpose.
       provider: env.EMAIL_PROVIDER ?? (isProduction ? 'none' : 'dev-capture'),
-      from: env.EMAIL_FROM ?? 'SmartPack <no-reply@smartpack.invalid>',
+      from:
+        env.EMAIL_FROM ??
+        (env.EMAIL_SENDER_EMAIL !== undefined
+          ? `${env.EMAIL_SENDER_NAME ?? DEFAULT_SENDER_NAME} <${env.EMAIL_SENDER_EMAIL}>`
+          : 'SmartPack <no-reply@smartpack.invalid>'),
+      sender: { name: env.EMAIL_SENDER_NAME ?? DEFAULT_SENDER_NAME, email: env.EMAIL_SENDER_EMAIL },
+      brevo:
+        env.EMAIL_PROVIDER === 'brevo' && env.BREVO_API_KEY !== undefined
+          ? {
+              apiKey: env.BREVO_API_KEY,
+              baseUrl: (env.BREVO_API_BASE_URL ?? DEFAULT_BREVO_ORIGIN).replace(/\/+$/, ''),
+            }
+          : null,
       smtp:
         env.EMAIL_PROVIDER === 'smtp' && env.SMTP_HOST !== undefined && env.SMTP_PORT !== undefined
           ? {

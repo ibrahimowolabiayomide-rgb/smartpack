@@ -248,6 +248,68 @@ describe('loadConfig authentication and email settings', () => {
     expect(message).not.toContain('hunter2-secret');
   });
 
+  describe('Brevo', () => {
+    const brevo = {
+      EMAIL_PROVIDER: 'brevo',
+      BREVO_API_KEY: 'xkeysib-test-key-0123456789abcdef',
+      EMAIL_SENDER_EMAIL: 'sender@example.test',
+    };
+
+    it('needs the API key and the sender address', () => {
+      const message = failureMessage({ DATABASE_URL: DB, EMAIL_PROVIDER: 'brevo' });
+      expect(message).toContain('BREVO_API_KEY: is required when EMAIL_PROVIDER=brevo');
+      expect(message).toContain('EMAIL_SENDER_EMAIL: is required when EMAIL_PROVIDER=brevo');
+    });
+
+    it('builds the sender from the environment and defaults the name to SmartPack', () => {
+      const config = load(brevo);
+      expect(config.email.provider).toBe('brevo');
+      expect(config.email.sender).toEqual({ name: 'SmartPack', email: 'sender@example.test' });
+      expect(config.email.brevo).toEqual({
+        apiKey: brevo.BREVO_API_KEY,
+        baseUrl: 'https://api.brevo.com',
+      });
+      const renamed = load({ ...brevo, EMAIL_SENDER_NAME: 'Acme Asset Desk' });
+      expect(renamed.email.sender.name).toBe('Acme Asset Desk');
+      expect(renamed.email.from).toBe('Acme Asset Desk <sender@example.test>');
+    });
+
+    it('rejects a malformed sender address or a name that could break headers', () => {
+      expect(failureMessage({ DATABASE_URL: DB, ...brevo, EMAIL_SENDER_EMAIL: 'nope' })).toContain(
+        'EMAIL_SENDER_EMAIL',
+      );
+      expect(
+        failureMessage({ DATABASE_URL: DB, ...brevo, EMAIL_SENDER_NAME: 'Evil <a@b.co>' }),
+      ).toContain('EMAIL_SENDER_NAME');
+    });
+
+    it('never puts the API key in an error message', () => {
+      const message = failureMessage({
+        DATABASE_URL: DB,
+        EMAIL_PROVIDER: 'brevo',
+        BREVO_API_KEY: brevo.BREVO_API_KEY,
+      });
+      expect(message).not.toContain(brevo.BREVO_API_KEY);
+    });
+
+    it('is allowed in production, but the API origin override is not', () => {
+      const prod = {
+        NODE_ENV: 'production',
+        WEB_APP_URL: 'https://app.example.com',
+        CORS_ALLOWED_ORIGINS: 'https://app.example.com',
+        ...brevo,
+      };
+      expect(load(prod).email.provider).toBe('brevo');
+      expect(
+        failureMessage({ DATABASE_URL: DB, ...prod, BREVO_API_BASE_URL: 'https://evil.example' }),
+      ).toContain('BREVO_API_BASE_URL: must not be set in production');
+    });
+
+    it('leaves the SMTP and none providers without Brevo settings', () => {
+      expect(load({}).email.brevo).toBeNull();
+    });
+  });
+
   it('infers SMTPS for port 465 unless told otherwise', () => {
     const base = {
       EMAIL_PROVIDER: 'smtp',
