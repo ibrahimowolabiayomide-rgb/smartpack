@@ -199,6 +199,139 @@ describe('Brevo provider (real application, local Brevo stand-in)', () => {
     }
   });
 
+  it('sends each role its own invitation, and a resend that keeps the role and issues a new link', async () => {
+    const org = await createOrg(world, 'Northwind Freight');
+    const cookie = await world.api.login(org.owner.email);
+    const admin = `${unique('adm')}@example.test`;
+    const worker = `${unique('wrk')}@example.test`;
+
+    for (const [email, role] of [
+      [admin, 'admin'],
+      [worker, 'worker'],
+    ] as const) {
+      const created = await world.api.post<InvitationResponse>(
+        '/organizations/current/invitations',
+        { email, role },
+        cookie,
+      );
+      expect(created.status).toBe(201);
+      expect(created.body.data.emailDelivery).toBe('sent');
+    }
+
+    const adminMail = brevo.to(admin)[0]?.body;
+    const workerMail = brevo.to(worker)[0]?.body;
+    expect(adminMail?.subject).toContain('administer Northwind Freight');
+    expect(adminMail?.textContent).toContain('Company Administrator');
+    expect(adminMail?.textContent).toContain('Assign roles to members');
+    expect(adminMail?.textContent).toContain('72 hours (3 days)');
+    expect(workerMail?.subject).toContain('as a worker');
+    expect(workerMail?.textContent).toContain('does not give you administrator or owner access');
+    expect(workerMail?.textContent).not.toContain('Assign roles');
+    for (const mail of [adminMail, workerMail]) {
+      expect(mail?.textContent).toContain('Northwind Freight');
+      expect(mail?.textContent).toContain('Ada Okafor'); // the real inviter's display name
+      expect(mail?.htmlContent).toContain('accept-invitation#token=');
+    }
+
+    // Resend: same role and company, a new link, and the old link stops working.
+    const listed = await world.api.get<{ data: { items: Array<{ id: string; email: string }> } }>(
+      '/organizations/current/invitations',
+      cookie,
+    );
+    const pending = listed.body.data.items.find((i) => i.email === worker);
+    expect(pending).toBeDefined();
+    const firstToken = tokenIn(workerMail?.textContent ?? '');
+    const resent = await world.api.post<InvitationResponse>(
+      `/organizations/current/invitations/${pending?.id ?? ''}/resend`,
+      {},
+      cookie,
+    );
+    expect(resent.status).toBe(200);
+    expect(resent.body.data.emailDelivery).toBe('sent');
+    const again = brevo.to(worker)[1]?.body;
+    expect(again?.subject).toContain('sent again');
+    expect(again?.subject).toContain('as a worker');
+    expect(again?.textContent).toContain('Northwind Freight');
+    const secondToken = tokenIn(again?.textContent ?? '');
+    expect(secondToken).not.toBe(firstToken);
+    const stale = await world.api.post('/invitations/accept', {
+      token: firstToken,
+      accountExists: false,
+      firstName: 'Tunde',
+      lastName: 'Bello',
+      password: STRONG_PASSWORD,
+    });
+    expect(stale.status).toBe(400);
+    const fresh = await world.api.post('/invitations/accept', {
+      token: secondToken,
+      accountExists: false,
+      firstName: 'Tunde',
+      lastName: 'Bello',
+      password: STRONG_PASSWORD,
+    });
+    expect(fresh.status).toBe(201);
+  });
+
+  it('personalises verification, reset and password-changed emails with the real account', async () => {
+    const org = await createOrg(world, 'Harbor Supply');
+    const ownerCookie = await world.api.login(org.owner.email);
+    await world.db.db.execute(
+      sql`update users set email_verified_at = null where id = ${org.owner.id}`,
+    );
+    expect((await world.api.post('/auth/email/resend-verification', {}, ownerCookie)).status).toBe(
+      200,
+    );
+    const verify = brevo.to(org.owner.email).find((r) => /verify/i.test(r.body.subject))?.body;
+    expect(verify?.textContent).toContain('Hello Ada,');
+    expect(verify?.textContent).toContain('Harbor Supply');
+    expect(verify?.textContent).toContain('24 hours (1 day)');
+    expect(verify?.textContent).toContain(org.owner.email);
+
+    // Change password while signed in.
+    const changed = await world.api.post(
+      '/auth/password/change',
+      { currentPassword: STRONG_PASSWORD, newPassword: 'Changed-Harbor-Secret-27' },
+      ownerCookie,
+    );
+    expect(changed.status).toBe(200);
+    const notice = await eventually(() =>
+      brevo.to(org.owner.email).find((r) => r.body.subject.includes('has been changed')),
+    );
+    expect(notice.body.textContent).toContain('Hello Ada,');
+    expect(notice.body.textContent).toContain('every other device was signed out');
+    expect(notice.body.textContent).toMatch(/\d{1,2} \w+ 20\d\d at \d\d:\d\d UTC/);
+    expect(notice.body.htmlContent).toContain('/forgot-password');
+    expect(notice.body.textContent).not.toContain('#token=');
+
+    // Reset: the email greets the real name and states the configured lifetime.
+    expect((await world.api.post('/auth/password/forgot', { email: org.owner.email })).status).toBe(
+      202,
+    );
+    const resetMail = await eventually(() =>
+      brevo.to(org.owner.email).find((r) => r.body.subject === 'Reset your SmartPack password'),
+    );
+    expect(resetMail.body.textContent).toContain('Hello Ada,');
+    expect(resetMail.body.textContent).toContain('60 minutes (1 hour)');
+    expect(resetMail.body.htmlContent).toContain('reset-password#token=');
+    const resetToken = tokenIn(resetMail.body.textContent);
+    expect(
+      (
+        await world.api.post('/auth/password/reset', {
+          token: resetToken,
+          newPassword: 'Reset-Harbor-Secret-81',
+        })
+      ).status,
+    ).toBe(200);
+    const afterReset = await eventually(() =>
+      brevo
+        .to(org.owner.email)
+        .filter((r) => r.body.subject.includes('has been changed'))
+        .at(1),
+    );
+    expect(afterReset.body.textContent).toContain('password-reset link');
+    expect(afterReset.body.textContent).toContain('every session on this account was ended');
+  });
+
   it('does not expose the development mailbox with this provider', async () => {
     expect((await world.api.get('/dev/mailbox')).status).toBe(404);
   });

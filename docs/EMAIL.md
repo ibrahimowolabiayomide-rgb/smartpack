@@ -59,6 +59,25 @@ needed to run Phase 3. Nothing is signed up for or configured by this project.
 | `email_verification` | A person asks to verify their address                          | `WEB_APP_URL/verify-email#token=...` (24 hours)      |
 | `password_changed`   | After a password is changed or reset (sent in the background). | none                                                 |
 
+### Message content
+
+Each message is written for its own purpose (`apps/api/src/email/templates.ts`) and shares only the
+SmartPack frame (`layout.ts`): header, details panel, button, security notice, closing and footer.
+
+- **Invitations are role-specific.** `invitation-roles.ts` holds the wording for each of the seven
+  built-in roles (Company Owner, Company Administrator, Operations Manager, Asset Manager,
+  Supervisor, Worker, Auditor). Every statement about what a role can do is a plain-language reading
+  of `packages/shared/src/permissions.ts`; `templates.spec.ts` asserts those permission facts, so a
+  permission change fails a test and the copy must be reviewed.
+- **A resend is its own message**: it says the invitation is being sent again, keeps the company and
+  role, and explains that the earlier link no longer works and the deadline has been extended.
+- **Expiry text is the configured lifetime** (`INVITATION_TTL_HOURS`, `PASSWORD_RESET_TTL_MINUTES`,
+  `EMAIL_VERIFICATION_TTL_HOURS`), for example "72 hours (3 days)" or "60 minutes (1 hour)".
+- **Names and addresses** come from the real account (first name, email, company, inviter). An
+  invitation has no recipient name because none exists yet, so it opens with "Hello,".
+- The footer links to the web application's own origin (`WEB_APP_URL`); no postal address, telephone
+  number or support address is invented.
+
 Each message has a plain-text and an HTML version. The HTML escapes everything it interpolates, and
 the link is repeated as text so it still works if a mail client breaks the button. Tokens are placed
 in the URL **fragment** so they are not sent to any web server and do not reach access logs or

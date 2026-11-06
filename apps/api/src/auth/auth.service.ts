@@ -33,7 +33,8 @@ import { PasswordHasher } from '../security/password-hasher.js';
 import { RATE_LIMITS, RateLimiter, type RateLimitPolicy } from '../security/rate-limiter.js';
 import { fingerprint, generateToken, hashToken } from '../security/tokens.js';
 import { toCurrentUser, type AuthContext } from './auth-context.js';
-import { emailVerificationLink, passwordResetLink } from './links.js';
+import { formatUtcTimestamp } from '../email/templates.js';
+import { emailVerificationLink, forgotPasswordPage, passwordResetLink } from './links.js';
 import { SessionsService } from './sessions.service.js';
 
 export interface SignedIn {
@@ -310,7 +311,12 @@ export class AuthService {
       return session;
     });
 
-    this.notifyPasswordChanged(auth.user.email, auth.organization.id, context);
+    this.notifyPasswordChanged(
+      { email: auth.user.email, firstName: auth.user.firstName },
+      auth.organization.id,
+      'change',
+      context,
+    );
     const fresh = await this.sessions.authenticate(created.token);
     if (!fresh) throw new Error('A session created moments ago could not be resolved.');
     return { current: toCurrentUser(fresh), token: created.token, expiresAt: created.expiresAt };
@@ -325,7 +331,12 @@ export class AuthService {
     if (!state.allowed) throw new RateLimitedException(state.retryAfterSeconds);
 
     const [user] = await this.database.db
-      .select({ id: users.id, email: users.email, status: users.status })
+      .select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        status: users.status,
+      })
       .from(users)
       .where(eq(users.emailNormalized, emailKey))
       .limit(1);
@@ -374,6 +385,8 @@ export class AuthService {
         name: 'password_reset',
         link: passwordResetLink(this.config.webAppUrl, token),
         expiresInMinutes: Math.round(this.config.auth.passwordResetTtlMs / 60_000),
+        recipientName: user.firstName,
+        recipientEmail: user.email,
       },
       to: user.email,
       requestId: context.requestId,
@@ -453,7 +466,12 @@ export class AuthService {
       );
     });
 
-    this.notifyPasswordChanged(pending.email, null, context);
+    this.notifyPasswordChanged(
+      { email: pending.email, firstName: pending.firstName },
+      null,
+      'reset',
+      context,
+    );
   }
 
   private assertPasswordAllowed(password: string, email: string, names: string[]): void {
@@ -464,13 +482,21 @@ export class AuthService {
   }
 
   private notifyPasswordChanged(
-    to: string,
+    person: { email: string; firstName: string },
     organizationId: string | null,
+    via: 'change' | 'reset',
     context: RequestContext,
   ): void {
     this.email.sendInBackground({
-      template: { name: 'password_changed', at: new Date().toUTCString() },
-      to,
+      template: {
+        name: 'password_changed',
+        at: formatUtcTimestamp(new Date()),
+        recipientName: person.firstName,
+        recipientEmail: person.email,
+        via,
+        resetPageLink: forgotPasswordPage(this.config.webAppUrl),
+      },
+      to: person.email,
       organizationId,
       requestId: context.requestId,
     });
@@ -507,6 +533,9 @@ export class AuthService {
         name: 'email_verification',
         link: emailVerificationLink(this.config.webAppUrl, token),
         expiresInHours: Math.round(this.config.auth.emailVerificationTtlMs / 3_600_000),
+        recipientName: auth.user.firstName,
+        recipientEmail: auth.user.email,
+        organizationName: auth.organization.name,
       },
       to: auth.user.email,
       organizationId: auth.organization.id,

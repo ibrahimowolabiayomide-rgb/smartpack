@@ -9,3 +9,5 @@ export const passwordResetLink = (webAppUrl: string, token: string) =>
   `${webAppUrl}/reset-password#token=${token}`;
 export const emailVerificationLink = (webAppUrl: string, token: string) =>
   `${webAppUrl}/verify-email#token=${token}`;
+/** The page where a new reset can be requested. It carries no token. */
+export const forgotPasswordPage = (webAppUrl: string) => `${webAppUrl}/forgot-password`;

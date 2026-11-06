@@ -247,7 +247,7 @@ export class InvitationsService {
       return id;
     });
 
-    const emailDelivery = await this.sendInvitation(auth, input.email, role, token, context);
+    const emailDelivery = await this.sendInvitation(auth, input.email, role, token, context, false);
     return { invitation: await this.getOne(auth, invitationId), emailDelivery };
   }
 
@@ -258,6 +258,7 @@ export class InvitationsService {
     role: RoleRecord,
     token: string,
     context: RequestContext,
+    resend: boolean,
   ): Promise<EmailDeliveryStatus> {
     return this.email.send({
       template: {
@@ -265,6 +266,9 @@ export class InvitationsService {
         organizationName: auth.organization.name,
         inviterName: auth.user.displayName,
         roleName: role.name,
+        roleKey: role.key,
+        recipientEmail: to,
+        resend,
         link: invitationLink(this.config.webAppUrl, token),
         expiresInHours: Math.round(this.config.auth.invitationTtlMs / 3_600_000),
       },
@@ -323,7 +327,7 @@ export class InvitationsService {
       );
       return { email: current.email, role };
     });
-    const emailDelivery = await this.sendInvitation(auth, email, role, token, context);
+    const emailDelivery = await this.sendInvitation(auth, email, role, token, context, true);
     return { invitation: await this.getOne(auth, id), emailDelivery };
   }
 
